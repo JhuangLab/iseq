@@ -1,0 +1,7 @@
+# Include the license file
+include LICENSE.txt
+recursive-include tests *
+
+# Include the data files
+recursive-include data *
+recursive-include iseq/Rtools *
