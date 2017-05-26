@@ -108,7 +108,10 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
         'console_scripts': [
-            'iseq=iseq:main',
-        ],
+            'preprocess=iseq.preprocess:main',
+            'variantcaller=iseq.variantcaller:main',
+            'refinement=iseq.refinement:main',
+            'panel=iseq.panel:main',
+        ]
     },
 )
