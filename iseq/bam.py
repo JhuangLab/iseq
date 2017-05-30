@@ -701,7 +701,9 @@ class BamFile(FundementalFile):
             out_case_vcf = VcfFile(out_dir + "/case/TSVC_variants.vcf", self.samplename, config_dict)
             out_control_vcf = VcfFile(out_dir + "/control/TSVC_variants.vcf" ,self.samplename, config_dict)
             case_cmd = setcmd(self.path, reffa, out_case_vcf.dirname, json)
+            case_cmd = case_cmd + " &> %s/log/%s.case.torrent_caller.log" % (os.getcwd(), self.runid)
             control_cmd = setcmd(control_bam, reffa, out_control_vcf.dirname, json)
+            control_cmd = control_cmd + " &> %s/log/%s.control.torrent_caller.log" % (os.getcwd(), self.runid)
             if self.isexist() and isexist(control_bam):
                 if not runed_vcf.isexist():
                     if not out_case_vcf.isexist():
@@ -850,8 +852,11 @@ class BamFile(FundementalFile):
             config_controlfn.flush()
             out_case = out_dir + "/" + self.samplename + ".case"
             out_control = out_dir + "/" + self.samplename + ".control"
+        if self.isexist():
             case_cmd = "%s -f %s -i %s -c ALL --number_of_threads %s -o %s" %(pindel, reffa, config_case, thread, out_case) 
+            case_cmd = case_cmd + " &> %s/log/%s.case.pindel_caller.log" % (os.getcwd(), self.runid)
             control_cmd = "%s -f %s -i %s -c ALL --number_of_threads %s -o %s" %(pindel, reffa, config_control, thread, out_control) 
+            control_cmd = control_cmd + " &> %s/log/%s.control.pindel_caller.log" % (os.getcwd(), self.runid)
         else:
             config_case = out_dir + "/pindel.case.config"
             config_casefn = open(config_case,"w")
@@ -859,6 +864,7 @@ class BamFile(FundementalFile):
             config_casefn.flush()
             out_case = out_dir + "/" + self.samplename + ".case"
             case_cmd = "%s -f %s -i %s -c ALL --number_of_threads %s -o %s" %(pindel, reffa, config_case, thread, out_case) 
+            case_cmd = case_cmd + " &> %s/log/%s.case.pindel_caller.log" % (os.getcwd(), self.runid)
         if self.isexist():
             if control_bam != "" and isexist(control_bam):
                 if not isexist(out_case + "_D"):

@@ -37,11 +37,11 @@ def prepare_optparser ():
     """Prepare optparser object. New options will be added in this
     function first.
     """
-    usage = "Usage: \n       %prog -c config.cfg -s A01A -m Fastq2vcf -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
-    usage = usage + "       %prog -c config.cfg -s A01A -m Fastq2bam -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
-    usage = usage + "       %prog -c config.cfg -s A01A -m Bam2vcf --in_bam A01.bam --bamprocess 00000000 -o outdir \n"
-    usage = usage + "       %prog -c config.cfg -m Genomeindex \n"
-    description = "iseq is an integrated analysis pipeline for NGS panel sequencing data. This is the no control mode, fastq and bam can be inpued. If you have any question about this tool, please contact us (lee_jianfeng@sjtu.edu.cn)"
+    usage = "Usage: \n       %prog -c config.cfg -s A01A -m fastq2vcf -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -s A01A -m fastq2bam -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -s A01A -m bam2vcf --in_bam A01.bam --bamprocess 00000000 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -m genomeindex \n"
+    description = "iseq is an integrated analysis pipeline for NGS panel sequencing data. This is the no control mode, fastq and bam can be inputed. If you have any question about this tool, please contact us (lee_jianfeng@sjtu.edu.cn)"
     optparser = OptionParser(version = "0.1.0", description = description, usage = usage, add_help_option = False)
     optparser.add_option("-h", "--help", action = "help", help = "Show this help message and exit.")
     optparser.add_option("-c", "--config", dest = "config", default = "config.cfg" ,type = "string",
@@ -49,7 +49,7 @@ def prepare_optparser ():
     optparser.add_option("-s", "--samplename", dest = "samplename" ,type = "string",
                          help = "Set the samplename.(Required)")
     optparser.add_option("-m", "--mode", dest = "mode" ,type = "string",
-                         help = "Run mode, [genome_index, Fastq2vcf, Fastq2bam, Bam2vcf, Bamprocess].(Required)")
+                         help = "Run mode, [genome_index, fastq2vcf, fastq2bam, bam2vcf, bamprocess, fastq2final, bam2final].(Required)")
     optparser.add_option("-1", "--fastq1", dest = "fastq1", type = "string", default = "",
                          help = "input fastq file paired 1.")
     optparser.add_option("-2", "--fastq2", dest = "fastq2", type = "string", default = "",
@@ -92,15 +92,15 @@ def opt_validate (optparser):
         optparser.print_help()
         print("Error:Please set fastq1/fastq2 or in_bam correctly.")
         sys.exit(1)
-    elif options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess"]:  
+    elif options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess", "fastq2final", "bam2final"]:  
         optparser.print_help()
         print("Error:mode are not in genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess.")
         sys.exit(1)
-    elif options.mode in ["fastq2vcf","fastq2bam"] and not options.fastq1 and not options.fastq2: 
+    elif options.mode in ["fastq2vcf","fastq2bam", "fastq2final"] and not options.fastq1 and not options.fastq2: 
         optparser.print_help()
         print("Error:Please set fastq1/fastq2 correctly.")
         sys.exit(1)
-    elif options.mode in ["bam2vcf","bamprocess"] and not options.in_bam: 
+    elif options.mode in ["bam2vcf","bamprocess", "bam2final"] and not options.in_bam: 
         optparser.print_help()
         print("Error:Please set in_bam correctly.")
         sys.exit(1)
@@ -112,7 +112,7 @@ def panel(options=""):
     cfg = get_config(options.config)
     vcf_out_dir = options.out_dir
     options.mode = options.mode.lower()
-    ################ Genome Index Mode #################
+    ################ genome Index Mode #################
     if options.mode == "genomeindex":
         options.genome_index = "1"
         options.fastq_mapping = "0"
@@ -121,16 +121,25 @@ def panel(options=""):
         options.vcffilter = "0" 
         options.vcfannovar = "0"
 
-    ################ Fastq2vcf Mode ################### 
+    ################ fastq2vcf Mode ################### 
     if options.mode == "fastq2vcf":
         options.genome_index = "0"
         options.fastq_mapping = "1"
         options.bamprocess = options.bamprocess
         options.variantcaller = "1"
-        options.vcffilter = ""
+        options.vcffilter = "1"
+        options.vcfannovar = "0"
+        options.mpileup = "0"
+    ################ fastq2final Mode ################### 
+    if options.mode == "fastq2final":
+        options.genome_index = "0"
+        options.fastq_mapping = "1"
+        options.bamprocess = options.bamprocess
+        options.variantcaller = "1"
+        options.vcffilter = "1"
         options.vcfannovar = "1"
         options.mpileup = "1"
-    ################ Fastq2bam Mode ################### 
+    ################ fastq2bam Mode ################### 
     if options.mode == "fastq2bam":
         options.genome_index = "0"
         options.fastq_mapping = "1"
@@ -139,13 +148,22 @@ def panel(options=""):
         options.vcffilter = "0" 
         options.vcfannovar = "0"
         options.mpileup = "0"
-    ################ Bam2vcf Mode ################### 
+    ################ bam2vcf Mode ################### 
     if options.mode == "bam2vcf":
         options.genome_index = "0"
         options.fastq_mapping = "0"
         options.bamprocess = options.bamprocess
         options.variantcaller = "1"
-        options.vcffilter = "" 
+        options.vcffilter = "1" 
+        options.vcfannovar = "0"
+        options.mpileup = "0"
+    ################ bam2vcf Mode ################### 
+    if options.mode == "bam2final":
+        options.genome_index = "0"
+        options.fastq_mapping = "0"
+        options.bamprocess = options.bamprocess
+        options.variantcaller = "1"
+        options.vcffilter = "1" 
         options.vcfannovar = "1"
         options.mpileup = "1"
     if options.mode == "bamprocess":
@@ -153,7 +171,7 @@ def panel(options=""):
         options.fastq_mapping = "0"
         options.bamprocess = options.bamprocess
         options.variantcaller = "0"
-        options.vcffilter = "" 
+        options.vcffilter = "1" 
         options.vcfannovar = "0"
         options.mpileup = "0"
 
@@ -194,14 +212,19 @@ def panel(options=""):
                                         options.out_dir = vcffile.dirname + "/" 
                                         options.case_vcf = str(vcffile)
                                         vcf = vcf.capitalize()
-                                    if vcf in "UnifiedGenotyper":
-                                        pass
-                                        #options.vcffilter = "wespipeline"
                                     options.exononly = True 
-                                    if vcf in "varscan":
+                                    if vcf in "Unifiedgenotyper":
+                                        options.vcffilter = cfg["unifiedgenotyper_filtration"]
+                                    if vcf in "Varscan":
                                         options.vcfformat = "vcf4old"
-                                    if vcf in "lofreq":
+                                        options.vcffilter = cfg["varscan_filtration"]
+                                    if vcf in "Lofreq":
                                         options.exononly = False
+                                        options.vcffilter = cfg["lofreq_filtration"]
+                                    if vcf in "Mutect":
+                                        options.vcffilter = cfg["mutect_filtration"]
+                                    if vcf in "Haplotypecaller":
+                                        options.vcffilter = cfg["haplotypecaller_filtration"]
                                     options.runid = "%s.%s.%s" % (options.samplename, key, vcf)
                                     finalfn = vcf_filter(options)
                                     finalout_dir = options.out_dir + "/finalResult"
@@ -230,7 +253,8 @@ def panel(options=""):
             t.join()
             info("%s %s full process be finished, wating another mapper or continue.", options.samplename, mapper[count])
             count = count + 1
-        collect_result_file(vcf_out_dir, options, bamfiles_pool, "germline", 2, 0.04)
+        if options.mode.find("final") != -1:
+            collect_result_file(vcf_out_dir, options, bamfiles_pool, "germline", 2, 0.04)
 
 def main():
     create_dir("%s/log" % os.getcwd())
