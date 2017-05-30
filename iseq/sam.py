@@ -20,25 +20,24 @@ class SamFile(FundementalFile):
     Method:
         conver2bam:Use samtools to convert SAM format file to BAM format file.
     """
-    def __init__(self, path, samplename, runid = None):
+    def __init__(self, path, samplename, config_dict = "", runid = None):
         if runid is None:
             runid = samplename
-        FundementalFile.__init__(self, path, runid)
+        FundementalFile.__init__(self, path, config_dict, runid)
         self.samplename = samplename
-    def convert2bam(self, config_dict, out_bam):
+    def convert2bam(self, out_bam):
+        config_dict = self.config_dict
         samtools = config_dict["samtools"]
-        info("Now running samtools to convert %s SAM File to %s Bam file." % (self.path, out_bam))
+        info("Running samtools to convert %s SAM File to %s Bam file." % (self.path, out_bam))
         cmd = "%s view -bS %s -o %s" % (samtools, self.path, out_bam)
-        out_bam = BamFile(out_bam ,self.samplename)
+        out_bam = BamFile(out_bam ,self.samplename, config_dict)
         if  out_bam.isexist():
             savecmd(cmd, self.samplename)
-            info("Run convert2bam step Successful!")
             return(out_bam)
         elif self.isexist():
             if not out_bam.isexist():
                 runcmd(cmd)
                 savecmd(cmd, self.samplename)
-                info("Run convert2bam step Successful!")
                 return(out_bam)
         else:
             info(self.path + " is not exists, cannot conduct the convert2bam step!")

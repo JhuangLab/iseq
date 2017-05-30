@@ -74,9 +74,12 @@ def opt_validate (optparser):
 
 class FundementalFilter(object):
     def __init__(self, options):
-        self.options = options
+        self.options = copy.deepcopy(options)
         self.samplename = options.samplename
-        self.case_vcf = VcfFile(options.case_vcf, self.samplename)
+        self.config_dict = get_config(options.config)
+        self.runid = self.options.runid
+        self.case_vcf = VcfFile(options.case_vcf, self.samplename, self.config_dict, runid = self.runid)
+
         self.out_dir = options.out_dir
         self.in_bam = options.in_bam
         try:
@@ -99,15 +102,15 @@ class GatkFilter(FundementalFilter):
     def fsqd_filter(self, out_vcf, window = 35, cluster = 3, maxFS = 30.0, minQD = 2.0):  #RNAseq pipeline filter
         out_dir = self.out_dir 
         create_dir(out_dir)
-        out_vcf = self.case_vcf.fsqd_filter(self.cfg, out_vcf, window, cluster, maxFS, minQD)
+        out_vcf = self.case_vcf.fsqd_filter(out_vcf, window, cluster, maxFS, minQD)
         return(out_vcf)
     def control_filter(self, out_vcf): #wes somatic pipeline unifiedgenotyper_caller drop same of conrol 
         out_dir = self.out_dir
-        out_vcf = self.case_vcf.control_filter(self.cfg, self.control_vcf, out_vcf)
+        out_vcf = self.case_vcf.control_filter(self.control_vcf, out_vcf)
         return(out_vcf)
-    def unifiedgenotyper_filter(self, out_vcf):
+    def common_filter(self, out_vcf):
         out_dir = self.out_dir
-        out_vcf = self.case_vcf.unifiedgenotyper_filter(self.cfg, out_vcf)
+        out_vcf = self.case_vcf.common_filter(out_vcf)
         return(out_vcf)
 
 class Vcffilter(FundementalFilter):
@@ -119,7 +122,7 @@ class Vcffilter(FundementalFilter):
         try:
             self.check_filter = options.Vcffilter
         except:
-            self.check_filter = "unifiedgenotyper_filter"
+            self.check_filter = "common_filter"
         try:
             self.check_annovar = options.vcfannovar
         except:
@@ -140,27 +143,30 @@ class Vcffilter(FundementalFilter):
             replace_str = obj.group()
             out_vcf =  self.case_vcf.path.replace(replace_str, "_FSQD.vcf")
             self.case_vcf = vcffil.fsqd_filter(out_vcf)
-        if "unifiedgenotyper_filter" in self.check_filter: 
+            self.case_vcf = VcfFile(self.case_vcf.path, self.samplename, self.config_dict, runid = self.runid)
+        if "common_filter" in self.check_filter: 
             vcffil = GatkFilter(self.options)
             obj = re.search(pattern, self.case_vcf.path)
             replace_str = obj.group()
-            out_vcf =  self.case_vcf.path.replace(replace_str, "_UNI.vcf")
-            self.case_vcf = vcffil.unifiedgenotyper_filter(out_vcf)
+            out_vcf =  self.case_vcf.path.replace(replace_str, "_COM.vcf")
+            self.case_vcf = vcffil.common_filter(out_vcf)
+            self.case_vcf = VcfFile(self.case_vcf.path, self.samplename, self.config_dict, runid = self.runid)
         if "control_filter" in self.check_filter:
             vcffil = GatkFilter(self.options)
             obj = re.search(pattern, self.case_vcf.path)
             replace_str = obj.group()
             out_vcf =  self.case_vcf.path.replace(replace_str, "_CONTR.vcf")
             self.case_vcf = vcffil.control_filter(out_vcf)
+            self.case_vcf = VcfFile(self.case_vcf.path, self.samplename, self.config_dict, runid = self.runid)
 
     def annovar(self):
         if self.check_annovar:    
             case_vcf = self.case_vcf
             annovar_out_dir = self.case_vcf.dirname + "/annovar/"
             create_dir(annovar_out_dir)
-            self.csvfile = case_vcf.annovar(self.cfg, annovar_out_dir)
+            self.csvfile = case_vcf.annovar(annovar_out_dir)
             out_fmt_annovar_fn = self.csvfile.dirname + "/" + self.samplename + "_result.txt" 
-            self.result_fn = self.csvfile.fmt_annovar(self.cfg, out_fmt_annovar_fn)  # Get standard table without mutation frq and depth
+            self.result_fn = self.csvfile.fmt_annovar(out_fmt_annovar_fn)  # Get standard table without mutation frq and depth
     def mpileup(self):
         if self.check_mpileup:
             csvfile = self.csvfile
@@ -174,7 +180,7 @@ class Vcffilter(FundementalFilter):
             if not isexist(csvfile.pos_file.path):
                 info("Annovar or VariantCaller file have 0 item of exon mutation.")
                 exit(0)
-            mpileup_file = csvfile.mpileup(self.cfg, self.in_bam, out_mpileup_fn)
+            mpileup_file = csvfile.mpileup(self.in_bam, out_mpileup_fn)
             mpileup_file = mpileup_file.fmtmpileup(out_fmt_mpileup_fn)
             ########### Get snv and indel alle depth and mutation frquence ############
             self.snv = mpileup_file.get_snv_frq(out_snv_frq_fn)
@@ -205,7 +211,7 @@ class VcffilterSomatic(Vcffilter):
             out_indel_frq_fn = csvfile.path + ".indelfrq"
             ########### Run Samtools Mpliup #################
             csvfile.get_pos(out_postion_fn ,exononly = self.exononly)
-            mpileup_file = csvfile.mpileup(self.cfg, casebam, out_mpileup_fn)
+            mpileup_file = csvfile.mpileup(casebam, out_mpileup_fn)
             mpileup_file = mpileup_file.fmtmpileup(out_fmt_mpileup_fn)
             ########### Get snv and indel alle depth and mutation frquence ############
             self.casesnv = mpileup_file.get_snv_frq(out_snv_frq_fn)
@@ -215,7 +221,7 @@ class VcffilterSomatic(Vcffilter):
             out_fmt_mpileup_fn = csvfile.path + ".control.fmtmpileup"    #Replace blank to unknow
             out_snv_frq_fn = csvfile.path + ".control.snvfrq"
             out_indel_frq_fn = csvfile.path + ".control.indelfrq"
-            mpileup_file = csvfile.mpileup(self.cfg, controlbam, out_mpileup_fn)
+            mpileup_file = csvfile.mpileup(controlbam, out_mpileup_fn)
             mpileup_file = mpileup_file.fmtmpileup(out_fmt_mpileup_fn)
             self.controlsnv = mpileup_file.get_snv_frq(out_snv_frq_fn)
             self.controlindel = mpileup_file.get_indel_frq(out_indel_frq_fn)
@@ -234,29 +240,29 @@ def collect_result_file(vcf_out_dir, options, bamfile_list, mode = "somatic", mi
     result_dir = vcf_out_dir+"/result/"
     exon_dir = result_dir + "/exon/"
     config = get_config(options.config)
+    caller_bak = config["caller"]
     caller = config["caller"]
     caller = caller.split(",")
     for m in bamfile_list.keys():
         for c in caller:
             dir_prefix = "%s/%s/%s" % (m.capitalize(), samplename, c.capitalize())
             filename_prefix = "%s.%s.%s" % (samplename, m.capitalize(), c.capitalize())
-            old_file_path = "%s/%s/finalResult/%s.txt" % (vcf_out_dir, dir_prefix, 
+            old_file_path = "%s/call/%s/finalResult/%s.txt" % (vcf_out_dir, dir_prefix, 
                     filename_prefix)
-            new_file_path = "%s/result/%s" % (vcf_out_dir, filename_prefix)
+            new_file_path = "%s/result/%s.txt" % (vcf_out_dir, filename_prefix)
             create_dir(os.path.dirname(new_file_path))
             cp(old_file_path, new_file_path)
             filename_prefix = "%s.exon.%s.%s" % (samplename, m.capitalize(), c.capitalize())
-            old_file_path = "%s/%s/finalResult/%s.txt" % (vcf_out_dir, dir_prefix, 
+            old_file_path = "%s/call/%s/finalResult/%s.txt" % (vcf_out_dir, dir_prefix, 
                 filename_prefix)
-            new_file_path = "%s/result/exon/%s" %(vcf_out_dir, filename_prefix)
+            new_file_path = "%s/result/exon/%s.txt" %(vcf_out_dir, filename_prefix)
             create_dir(os.path.dirname(new_file_path))
             cp(old_file_path, new_file_path)
     #Filter and collect result file
     exon_input_csv = get_sample_file(exon_dir, samplename)
-    cmd = set_filter_cmd(exon_input_csv, exon_dir + samplename + ".exon.collected.txt", mode, 3, 4, min_case_depth, min_case_frq, max_control_frq)
+    cmd = set_filter_cmd(exon_input_csv, exon_dir + samplename + ".exon.collected.txt", mode, 3, 4, min_case_depth, min_case_frq, max_control_frq, config)
     runcmd(cmd)
     savecmd(cmd, samplename)
-    info("The %s all result file can be found in %s!" %(samplename, (vcf_out_dir+"/result")))
 
 def get_sample_file(dirname, samplename):
     files = os.listdir(dirname)
@@ -268,19 +274,19 @@ def get_sample_file(dirname, samplename):
             else:
                 incsv = incsv + "," + dirname + "/" + i
     return(incsv)
-def set_filter_cmd(incsv, out_fn , mode = "somatic", mapper_field = 3, caller_field = 4, min_case_depth = 10, min_case_frq = 0.08, max_control_frq = 0.05):
+def set_filter_cmd(incsv, out_fn , mode = "somatic", mapper_field = 3, caller_field = 4, min_case_depth = 10, min_case_frq = 0.08, max_control_frq = 0.05, config_dict = ""):
     root_dir = get_root_dir()
     if mode == "somatic":
-        cmd = "Rscript %s/Rtools/post_filter.R -i %s --mapperfield %s \
-               --callerfield %s --min-casedepth %s --min-casefrq %s \
+        cmd = "%s %s/Rtools/post_filter.R -i %s --mapper_field %s \
+               --caller_field %s --min-casedepth %s --min-casefrq %s \
                --max-controlfrq %s -o %s -m %s" \
-                % (root_dir, incsv, mapper_field, caller_field, min_case_depth, \
+                % (config_dict["Rscript"], root_dir, incsv, mapper_field, caller_field, min_case_depth, \
                     min_case_frq, max_control_frq, out_fn, mode)
     else:
-        cmd = "Rscript %s/Rtools/post_filter.R -i %s --mapper_field %s \
+        cmd = "%s %s/Rtools/post_filter.R -i %s --mapper_field %s \
                --caller_field %s --min-casedepth %s --min-casefrq %s \
                -o %s -m %s" \
-                % (root_dir, incsv, mapper_field, caller_field, min_case_depth, \
+                % (config_dict["Rscript"], root_dir, incsv, mapper_field, caller_field, min_case_depth, \
                     min_case_frq, out_fn, mode)
     return(cmd)
 

@@ -17,16 +17,17 @@ class MpileupFile(FundementalFile):
         Class Name: mpileup File, need be point the file path and samplename(eg. A101A or A101C and A101T) to initial.
     Method:
     """
-    def __init__(self, path, samplename, runid=None):
+    def __init__(self, path, samplename, config_dict = "", runid=None):
         if runid is None:
             runid = samplename
-        FundementalFile.__init__(self, path, runid)
+        FundementalFile.__init__(self, path, config_dict, runid)
         self.samplename = samplename
     def fmtmpileup(self, out_fn):
+        config_dict = self.config_dict
         rootdir = get_root_dir()
-        out_fn = MpileupFile(out_fn, self.samplename)
+        out_fn = MpileupFile(out_fn, self.samplename, config_dict)
         info("Running fmtmpileup for %s to %s" % (self.path, out_fn.path))
-        cmd = "Rscript %s/Rtools/fmtmpileup.R -i %s -o %s " %(rootdir, self.path, out_fn.path)
+        cmd = "%s %s/Rtools/fmtmpileup.R -i %s -o %s " %(config_dict['Rscript'], rootdir, self.path, out_fn.path)
         if not out_fn.isexist():
             runcmd(cmd)
             savecmd(cmd, self.samplename)
@@ -36,11 +37,10 @@ class MpileupFile(FundementalFile):
         else:
             savecmd(cmd, self.samplename)
         self.fmtmpileupfile =  out_fn
-        info("Run fmtmpileup step successful!")
         return(out_fn) # MpileupFile Class instance 
     def get_snv_frq(self, out_fn):
         # Define some dir or file name
-        out_fn = MpileupFile(out_fn, self.samplename) 
+        out_fn = MpileupFile(out_fn, self.samplename, self.config_dict) 
         info("Running get_snv_frq for %s to %s" % (self.path, out_fn.path))
         if not out_fn.isexist():
             info ("SNV statistics data will be write in %s" % (out_fn.path))
@@ -102,7 +102,6 @@ class MpileupFile(FundementalFile):
                 counts +=1
             fnw.flush()
             info("Total %s row have been processed!" %(str(counts)))
-        info("Run get_snv_frq step successful!")
         return(out_fn) # MpileupFile Class instance 
 
     def get_indel_frq(self,out_fn):
@@ -190,7 +189,6 @@ class MpileupFile(FundementalFile):
                 counts += 1
             fnw.flush()
             info("Total %s row have been processed!" %(str(counts)))
-        info("Run get_indel_frq step successful!")
         return(out_fn) # MpileupFile Class instance 
 
     #####Process mpileup result file userful function#############

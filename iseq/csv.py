@@ -23,17 +23,18 @@ class CsvFile(FundementalFile):
         mpileup: Using samtools to mpileup for the all positions
         rbind: Merge CSV file with another CSV file
     """
-    def __init__(self, path, samplename, runid = None):
+    def __init__(self, path, samplename, config_dict = "", runid = None):
         if runid is None:
             runid = samplename
-        FundementalFile.__init__(self, path, runid)
+        FundementalFile.__init__(self, path, config_dict, runid)
         self.samplename = samplename
-    def fmt_annovar(self, config_dict, out_fn):
+    def fmt_annovar(self, out_fn):
+        config_dict = self.config_dict
         root_dir = get_root_dir()
         colnames_need = config_dict["annovar_colnames"]
-        out_fn = ResultFile(out_fn, self.samplename)
+        out_fn = ResultFile(out_fn, self.samplename, config_dict)
         info("Running format annovar file %s to %s" % (self.path, out_fn.path))
-        cmd = "Rscript %s/Rtools/fmtannovar2result.R -i %s -c %s -o %s -s %s" % (root_dir, self.path, colnames_need, out_fn.path, self.samplename)
+        cmd = "%s %s/Rtools/fmtannovar2result.R -i %s -c %s -o %s -s %s" % (config_dict["Rscript"], root_dir, self.path, colnames_need, out_fn.path, self.samplename)
         if not out_fn.isexist():
             runcmd(cmd)
             savecmd(cmd, self.samplename)
@@ -42,27 +43,27 @@ class CsvFile(FundementalFile):
                 return(False)
         else:
             savecmd(cmd, self.samplename)
-        info("Run fmtannovar step successful!")
         self.fmtfile =  out_fn 
         return(out_fn) # ResultFile Class instance 
     def get_pos(self , out_fn ,sep=",", exononly= False):
+        config_dict = self.config_dict
         root_dir = get_root_dir()
-        out_fn = MpileupFile(out_fn ,self.samplename)
+        out_fn = MpileupFile(out_fn ,self.samplename, config_dict)
         info("Running get_pos for %s to %s" % (self.path, out_fn.path))
-        cmd = "Rscript %s/Rtools/getPos.R -i %s -o %s --split %s --exononly %s" %(root_dir, self.path, out_fn.path, sep, exononly)
+        cmd = "%s %s/Rtools/getPos.R -i %s -o %s --split %s --exononly %s" %(config_dict["Rscript"], root_dir, self.path, out_fn.path, sep, exononly)
         if not out_fn.isexist():
             runcmd(cmd)
             savecmd(cmd, self.samplename)
         else:
             savecmd(cmd, self.samplename)
         self.pos_file =  out_fn 
-        info("Run get_pos step successful!")
         return(out_fn) # MpileupFile Class instance 
-    def mpileup(self, config_dict, in_bam, out_fn):
+    def mpileup(self, in_bam, out_fn):
+        config_dict = self.config_dict
         samtools = config_dict["samtools"]
         reffa = config_dict["reffa"]
         root_dir = get_root_dir()
-        out_fn = MpileupFile(out_fn ,self.samplename)
+        out_fn = MpileupFile(out_fn ,self.samplename, config_dict)
         info("Running samtools mpileup for %s to %s" % (self.path, out_fn.path))
         cmd = "%s mpileup -q 1 -l %s -f %s %s > %s" % (samtools, self.pos_file ,reffa, in_bam, out_fn.path)
         if not out_fn.isexist():
@@ -71,7 +72,6 @@ class CsvFile(FundementalFile):
         else:
             savecmd(cmd, self.samplename)
         self.mpileupfile =  out_fn
-        info("Run samtools mpileup step successful!")
         return(out_fn) # MpileupFile Class instance 
     def rbind(self, fn, out_fn, paired_header=True, **kwargs):
         fn1 = open(self.path, "r")

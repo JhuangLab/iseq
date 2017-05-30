@@ -16,29 +16,31 @@ import re
 import math
 import os
 import time
+import threading
+from time import ctime,sleep
 import subprocess
 from optparse import OptionParser
 import logging
 import time
-import copy
 import shutil
 from pycnf.pycnf import ConfigFile
 import gzip
 import binascii 
 from cStringIO import StringIO
 import copy
+import logging.handlers  
 # filter function
 # from filter import filtercreate_dir, indel_poz2gene, snv_poz2gene
 # ------------------------------------
 # constants
 # ------------------------------------
+
 logging.basicConfig(level=20,
                     format='%(levelname)-5s @ %(asctime)s: %(message)s ',
                     datefmt='%a, %d %b %Y %H:%M:%S',
                     stream=sys.stderr,
-                    filemode="w"
+                    filemode="w",
                     )
-
 # ------------------------------------
 # Misc functions
 # ------------------------------------
@@ -46,6 +48,7 @@ error = logging.critical
 warn = logging.warning
 debug = logging.debug
 info = logging.info
+
 # ------------------------------------
 # Config file
 # ------------------------------------
@@ -63,17 +66,17 @@ def get_config(path="config.cfg"):
 
 def create_dir(path, runid = "default"):
     path = os.path.expanduser(path)
+    cmd = "mkdir -p %s" % (path)
     if not os.path.exists(path):
         try:
             os.makedirs(path)
             status = True
         except:
             status = False
+        info(cmd)
     else:
         status = True
     if status:
-        cmd = "mkdir -p %s" % (path)
-        info(cmd)
         savecmd(cmd, runid)
     return(status)
 
@@ -90,10 +93,10 @@ def isexist(fn):
 
 def runcmd(cmd, run=True):
     if run:
-        info(cmd)
+        info("Running CMD:"+ cmd)
         p = subprocess.Popen(['/bin/bash', '-c', cmd])
         sts = os.waitpid(p.pid, 0)
-        info("Finish runnning command.")
+        info("Finished CMD:"+ cmd)
     else:
         info(cmd)
 
@@ -156,11 +159,11 @@ def cp(path, new_path, runid = "default"):
                 status = False
         if is_file:
             cmd = "cp %s %s" % (path, new_path)
-            info(cmd)
+            print(cmd)
             savecmd(cmd, runid)
         elif is_dir:
             cmd = "cp -r %s %s" % (path, new_path)
-            info(cmd)
+            print(cmd)
             savecmd(cmd, runid)
     return(status)
 
@@ -333,11 +336,12 @@ class FundementalFile(object):
         gzip_uncompress:gunzip -c path.gz > new
         catmerge:cat file1 file2 ... > newfile
     """
-    def __init__(self, path, runid = "default"):
+    def __init__(self, path, config_dict = "", runid = "default"):
         self.path = str(path)
         self.dirname = os.path.dirname(str(path)) 
         self.basename = os.path.basename (str(path)) 
         self.runid = runid
+        self.config_dict = config_dict
     def mv(self ,new_path):
         return(mv(self.path, new_path, self.runid))
     def cp(self, new_path):
@@ -356,3 +360,12 @@ class FundementalFile(object):
     def catmerge(self, other_fn_list=[], out_fn =""):
         other_fn_list.append(self.path)
         return(catmerge(other_fn_list, out_fn, self.runid))
+
+class MyThread(threading.Thread):
+    def __init__(self, func, args):
+        threading.Thread.__init__(self)
+        self.func = func
+        self.args = args
+
+    def run(self):
+        apply(self.func, self.args)

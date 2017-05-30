@@ -20,7 +20,7 @@ class VcfFile(FundementalFile):
         fsqd_filter: Use Gatk to filter the VCF file only according the max FS and min QD value
         control_filter_nosplit: Use Gatk SelectVariants to filter the variants existing in the control data (SNP and INDEL no split)
         control_filter: Use Gatk SelectVariants to filter the variants existing in the control data (SNP and INDEL split)
-        unifiedgenotyper_filter: A standard filter condition for Unifiedgenotyper output
+        common_filter: A standard filter condition for Unifiedgenotyper output
         snpfilter: Filter the all dbSNP records
         annovar: Use ANNOVAR to annotation the variants
         merge: Use GATK CombineVariants to merge mulitple VCF files
@@ -28,18 +28,20 @@ class VcfFile(FundementalFile):
         select_snp: Select all SNVs mutations
         select_indel: Select all INDELs mutations
     """
-    def __init__(self, path, samplename, runid = None):
+    def __init__(self, path, samplename, config_dict = "", runid = None):
         if runid is None:
             runid = samplename
-        FundementalFile.__init__(self, path, runid)
+        FundementalFile.__init__(self, path, config_dict, runid)
         self.samplename = samplename
-    def fsqd_filter(self, config_dict, out_vcf, window = 35, cluster = 3, max_FS = 30.0, min_QD = 2.0):
+    def fsqd_filter(self, out_vcf, window = 35, cluster = 3, max_FS = 30.0, min_QD = 2.0):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Runing vcf Filter, filter:FS > 30.0, QD < 2.0.")
-        out_vcf = VcfFile(out_vcf, self.samplename) 
+        out_vcf = str(out_vcf)
+        info("Runing vcf Filter for %s, filter:FS > 30.0, QD < 2.0." % self.path)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
         cmd = "%s -Xmx%s -jar %s \
                 -T VariantFiltration \
                 -R %s \
@@ -50,6 +52,8 @@ class VcfFile(FundementalFile):
                 -filterName QD \
                 -filter 'QD < %s' \
                 -o %s " %(java, java_max_mem, gatk, reffa, self.path, window, cluster, max_FS, min_QD, out_vcf.path)
+        log = " &> %s/log/%s.fsqd_filter.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if self.isexist():
             if not out_vcf.isexist() :
                 runcmd(cmd)
@@ -59,21 +63,24 @@ class VcfFile(FundementalFile):
         else:
             info("vcf Filter run fail, " + self.path + " is not exists!")
             return(False)
-        info("vcf FS>30 QD<2.0 Filter run successful!")
         return(out_vcf) # VcfFile Class instance
-    def control_filter_nosplit(self, config_dict, control_vcf, out_vcf):
+    def control_filter_nosplit(self, control_vcf, out_vcf):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
         tmp_dir = config_dict["gatk_tmp_dir"]
-        case_vcf = VcfFile(self.path, self.samplename)
-        control_vcf = VcfFile(control_vcf, self.samplename)
-        out_vcf = VcfFile(out_vcf, self.samplename) 
+        case_vcf = VcfFile(self.path, self.samplename, config_dict)
+        control_vcf = VcfFile(control_vcf, self.samplename, config_dict)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
+        info("Runing vcf Control Filter nosplit for case:%s and control:%s." % self.path, control_vcf)
         def rcmd(case_vcf, control_vcf, out_vcf):
             cmd = "%s -Xmx%s -Djava.io.tmpdir=%s -jar %s -R %s -T SelectVariants \
                 -V %s --discordance %s -o %s"\
                 % (java, java_max_mem, tmp_dir, gatk, reffa, case_vcf , control_vcf, out_vcf)
+            log = " &> %s/log/%s.control_filter_nosplit.log" % (os.getcwd(), self.runid)
+            cmd = cmd + log
             if self.isexist():
                 if not isexist(out_vcf) :
                     runcmd(cmd)
@@ -85,26 +92,28 @@ class VcfFile(FundementalFile):
                 return(False)
         if not out_vcf.isexist():
             rcmd(case_vcf.path, control_vcf.path, out_vcf.path)
-        info("vcf Control Discordance Filter run successful!")
         return(out_vcf)
-    def control_filter(self, config_dict, control_vcf, out_vcf):
+    def control_filter(self, control_vcf, out_vcf):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         tmp_dir = config_dict["gatk_tmp_dir"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Runing vcf Control Filter, select discordance variants compared with control vcf file.")
-        case_vcf = VcfFile(self.path, self.samplename)
-        control_vcf = VcfFile(control_vcf, self.samplename)
-        case_vcf.select_snp(config_dict, self.path + ".snv")
-        control_vcf.select_snp(config_dict, control_vcf.path + ".snv")
-        case_vcf.select_indel(config_dict, self.path + ".indel")
-        control_vcf.select_indel(config_dict, control_vcf.path + ".indel")
-        out_vcf = VcfFile(out_vcf, self.samplename) 
-        def rcmd(case_vcf_path, control_vcf_path, out_vcf_path):
+        info("Runing vcf Control Filter split, case:%s and control:%s." % (self.path, control_vcf))
+        case_vcf = VcfFile(self.path, self.samplename, config_dict)
+        control_vcf = VcfFile(control_vcf, self.samplename, config_dict)
+        case_vcf.select_snp(self.path + ".snv")
+        control_vcf.select_snp(control_vcf.path + ".snv")
+        case_vcf.select_indel(self.path + ".indel")
+        control_vcf.select_indel(control_vcf.path + ".indel")
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
+        def rcmd(case_vcf_path, control_vcf_path, out_vcf_path, prefix):
             cmd = "%s -Xmx%s -Djava.io.tmpdir=%s -jar %s -R %s -T SelectVariants \
                 -V %s --discordance %s -o %s"\
                 % (java, java_max_mem, tmp_dir, gatk, reffa, case_vcf_path , control_vcf_path, out_vcf_path)
+            log = " &> %s/log/%s.%s.control_filter.log" % (os.getcwd(), self.runid, prefix)
+            cmd = cmd + log
             if self.isexist():
                 if not isexist(out_vcf_path):
                     runcmd(cmd)
@@ -116,28 +125,29 @@ class VcfFile(FundementalFile):
                 return(False)
         if not out_vcf.isexist():
             if not isexist(case_vcf.path + ".snv.fil.vcf"):
-                rcmd(case_vcf.path + ".snv", control_vcf.path + ".snv", case_vcf.path + ".snv.fil.vcf")
+                rcmd(case_vcf.path + ".snv", control_vcf.path + ".snv", case_vcf.path + ".snv.fil.vcf", "snv")
             if not isexist(case_vcf.path + ".indel.fil.vcf"):
-                rcmd(case_vcf.path + ".indel", control_vcf.path + ".indel", case_vcf.path + ".indel.fil.vcf")
-            snvfil = VcfFile(case_vcf.path + ".snv.fil.vcf", self.samplename)
-            indelfil = VcfFile(case_vcf.path + ".indel.fil.vcf", self.samplename)
-            snvfil.merge(config_dict, out_vcf.path, indelfil = indelfil.path)
+                rcmd(case_vcf.path + ".indel", control_vcf.path + ".indel", case_vcf.path + ".indel.fil.vcf", "indel")
+            snvfil = VcfFile(case_vcf.path + ".snv.fil.vcf", self.samplename, config_dict)
+            indelfil = VcfFile(case_vcf.path + ".indel.fil.vcf", self.samplename, config_dict)
+            snvfil.merge(out_vcf.path, indelfil = indelfil.path)
             rm(self.path + ".snv*")
             rm(self.path + ".indel*")
             rm(control_vcf.path + ".indel*")
             rm(control_vcf.path + ".snv*")
             rm(out_vcf.path + "*recode.vcf*")
-        info("vcf Control Discordance Filter run successful!")
         return(out_vcf) # VcfFile Class instance
-    def unifiedgenotyper_filter(self, config_dict, out_vcf):
+    def common_filter(self, out_vcf):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         tmp_dir = config_dict["gatk_tmp_dir"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Runing vcf unifiedgenotyper_filter,add header : 'HARD_TO_VALIDATE,LowCoverage,LowQD,LowQual'.")
-        out_vcf = VcfFile(out_vcf, self.samplename) 
+        info("Running vcf common filter for %s, add header : 'HARD_TO_VALIDATE,LowCoverage,LowQD,LowQual'." % self.path)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
         tmp = out_vcf.path + ".tmp"
+        log = " &> %s/log/%s.Unifiedgenotyper_filter.log" % (os.getcwd(), self.runid)
         cmd = "%s -Xmx%s -Djava.io.tmpdir=%s -jar %s -R %s -T VariantFiltration \
               --variant %s \
               --filterExpression \"MQ0 >= 4 && ((MQ0 / (1.0 * DP)) > 0.1)\"  --filterName \"HARD_TO_VALIDATE\" \
@@ -145,9 +155,9 @@ class VcfFile(FundementalFile):
               --filterExpression \"QD < 1.5 \" --filterName \"LowQD\" \
               --filterExpression \"QUAL > 30.0 && QUAL < 50.0 \" --filterName \"LowQual\" \
               --clusterWindowSize 10 \
-                -o %s \
+                -o %s %s \
                 && grep '#' %s > %s && grep 'PASS' %s >> %s"\
-            % (java, java_max_mem, tmp_dir, gatk, reffa, self.path, tmp, tmp, out_vcf.path, tmp, out_vcf.path)
+            % (java, java_max_mem, tmp_dir, gatk, reffa, self.path, tmp, log, tmp, out_vcf.path, tmp, out_vcf.path)
         if self.isexist():
             if not out_vcf.isexist() :
                 runcmd(cmd)
@@ -157,11 +167,11 @@ class VcfFile(FundementalFile):
         else:
             info("vcf Filter run fail, " + self.path + " is not exists!")
             return(False)
-        info("vcf unifiedgenotyper_filter run successful!")
         return(out_vcf) # VcfFile Class instance
     def snpfilter(self, out_vcf):
-        info("Runing snp filter, it will drop all snp line. ")
-        out_vcf = VcfFile(out_vcf, self.samplename) 
+        config_dict = self.config_dict
+        info("Runing snp filter for %s, it will drop all snp line." % self.path)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
         self.cp(out_vcf.path)
         cmd = "sed -i \"/\trs/d\" %s" \
             % (out_vcf.path)
@@ -174,16 +184,16 @@ class VcfFile(FundementalFile):
         else:
             info("vcf Filter run fail, " + self.path + " is not exists!")
             return(False)
-        info("vcf snp Filter run successful!")
         return(out_vcf) # VcfFile Class instance
-    def annovar(self, config_dict, out_dir):
+    def annovar(self, out_dir):
+        config_dict = self.config_dict
         annovar_dir = config_dict["annovar_dir"]
         buildver = config_dict["annovar_buildver"]
         annovar_flag = config_dict["annovar_flag"]
         info ("Running annovar " + self.path + " VCF file, and output to " + out_dir + ".")
         avinput = out_dir + "/" + self.samplename + ".avinput" 
         out_csv = avinput + "." + buildver + "_multianno.csv"
-        out_csv = CsvFile(out_csv, self.samplename)
+        out_csv = CsvFile(out_csv, self.samplename, config_dict)
         create_dir(out_dir)
         cmd = "%s/convert2annovar.pl -withzyg -includeinfo -format vcf4old %s > %s" %(annovar_dir,  self.path, avinput)
         if not isexist(avinput):
@@ -191,25 +201,28 @@ class VcfFile(FundementalFile):
             savecmd(cmd, self.samplename)
         else:
             savecmd(cmd, self.samplename)
+        log = " &> %s/log/%s.annovar.log" % (os.getcwd(), self.runid)
         cmd = "%s/table_annovar.pl %s %s/humandb -buildver %s -remove %s -nastring . -csvout" % (annovar_dir, avinput, 
                 annovar_dir, buildver, annovar_flag) 
+        cmd = cmd + log
         if not out_csv.isexist() and isexist(avinput):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
         elif out_csv.isexist():
             savecmd(cmd, self.samplename)
-            info("Run annovar step for %s successful!" % (self.path))
         else:
             info("Run annovar step for %s fail!" % (self.path))
         return(out_csv) # CsvFile Class instance
-    def merge(self, config_dict, out_fn, **kwargs):
+    def merge(self, out_fn, **kwargs):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
         tmp_dir = config_dict["gatk_tmp_dir"]
         info ("vcfcombine: Begin to merge vcf outputs for files: %s.", self.path + ", " + ", ".join(kwargs.values()))
-        out_fn = VcfFile(out_fn, self.samplename) 
+        out_fn = VcfFile(out_fn, self.samplename, config_dict) 
+        log = " &> %s/log/%s.vcf_merge.log" % (os.getcwd(), self.runid)
         cmd = "%s -Xmx%s -Djava.io.tmpdir=%s -jar %s -T CombineVariants \
               -R %s --variant %s -o %s \
               --unsafe --genotypemergeoption UNIQUIFY" \
@@ -219,7 +232,8 @@ class VcfFile(FundementalFile):
             if check.isexist():
                 cmd = cmd + " --variant %s " % kwargs[ key ] 
             else:
-                info("%s is not exists, it can not be merged.")
+                info("%s is not exists, it can not be merged.", check.path)
+        cmd = cmd + log
         if not out_fn.isexist():
             runcmd(cmd)
             savecmd(cmd, self.samplename)
@@ -228,11 +242,11 @@ class VcfFile(FundementalFile):
                 return(False)
         else:
             savecmd(cmd, self.samplename)
-        info("Run vcfcombine step for %s successful!" % (self.path + ", " + ", ".join(kwargs.values())))
         return(out_fn) #VcfFile instance
     def varscan2gatkfmt(self):
         root_dir = get_root_dir()
         perl_tools_dir = root_dir + "/Rtools"
+        info("Running varscan2gatkfmt step for %s." % (self.path))
         cmd = "perl %s/fmtVarscan2GATK.pl -i %s -o %s" % (perl_tools_dir, self.path, self.path)
         if self.isexist():
             runcmd(cmd)
@@ -240,28 +254,35 @@ class VcfFile(FundementalFile):
         else:
             info("%s file is not exists!Can not run varscan2gatkfmt step!" % self.path)
             return(False)
-        info("Run varscan2gatkfmt step for %s successful!" % (self.path))
-    def select_snp(self, config_dict, out_fn):
+    def select_snp(self, out_fn):
+        config_dict = self.config_dict
         vcftools = config_dict["vcftools"]
         runed_vcf = out_fn
+        info("Runing select snvs step for %s." % (self.path))
         if not isexist (out_fn):
             cmd = "%s --vcf %s --remove-indels --recode --recode-INFO-all --out %s" % (vcftools, self.path, out_fn)
+            log = " &> %s/log/%s.select_snp.log" % (os.getcwd(), self.runid)
+            cmd = cmd + log
             runcmd(cmd)
             savecmd(cmd, self.samplename)
-            runed_vcf = VcfFile(out_fn + ".recode.vcf", self.samplename)
+            runed_vcf = VcfFile(out_fn + ".recode.vcf", self.samplename, config_dict)
             runed_vcf.mv(out_fn)
         if isexist(out_fn):
             return(True)
         else:
             return(False)
-    def select_indel(self, config_dict, out_fn):
+    def select_indel(self, out_fn):
+        config_dict = self.config_dict
         vcftools = config_dict["vcftools"]
         runed_vcf = out_fn
+        info("Runing select indels step for %s." % (self.path))
         if not isexist (out_fn):
             cmd = "%s --vcf %s --keep-only-indels --recode --recode-INFO-all --out %s" % (vcftools, self.path, out_fn)
+            log = " &> %s/log/%s.select_indel.log" % (os.getcwd(), self.runid)
+            cmd = cmd + log
             runcmd(cmd)
             savecmd(cmd, self.samplename)
-            runed_vcf = VcfFile(out_fn + ".recode.vcf",self.samplename)
+            runed_vcf = VcfFile(out_fn + ".recode.vcf",self.samplename, config_dict)
             runed_vcf.cp(out_fn)
         if isexist(out_fn):
             return(True)

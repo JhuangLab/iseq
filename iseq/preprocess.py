@@ -59,7 +59,7 @@ class FundementalPreprocess(object):
         self.options = options
         self.cfg = get_config(options.config)
         self.reffa = self.cfg["reffa"]
-        self.mapper = self.cfg["mapper"]
+        self.mapper = options.mapper
         self.genome_indexer = self.cfg["genome_indexer"]
 
 class GenomePreprocessor(FundementalPreprocess):
@@ -67,35 +67,48 @@ class GenomePreprocessor(FundementalPreprocess):
         FundementalPreprocess.__init__(self, options)
         self.genome_indexer_list = self.genome_indexer.split(",") 
     def preprocess(self):
-        genome = ReffaFile(self.reffa)
+        genome = ReffaFile(self.reffa, self.cfg)
+        threads = []
         for indexer in self.genome_indexer_list:
             indexer = indexer.lower()
             if indexer == "star":
                 #1pass to get SJ.tab file for run 2pass when run STAR mapping step
-                genome.star_index(self.cfg, "1pass")
+                t1 = threading.Thread(target = genome.star_index)
+                threads.append(t1)
             elif indexer == "bwa":
-                genome.bwa_index(self.cfg)
+                t2 = threading.Thread(target = genome.bwa_index)
+                threads.append(t2)
             elif indexer == "bowtie2":
-                genome.bowtie2_index(self.cfg)
+                t3 = threading.Thread(target = genome.bowtie2_index)
+                threads.append(t3)
             elif indexer == "bowtie":
-                genome.bowtie_index(self.cfg)
+                t4 = threading.Thread(target = genome.bowtie_index)
+                threads.append(t4)
             else:
                 info("The genome_indexer set error in config.cfg!")
-        genome.generate_dict(self.cfg)
+
+        t5 = threading.Thread(target = genome.generate_dict)
+        threads.append(t5)
         # ReffaFile Class instance
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(genome)
 
 class FastqPreprocessor(FundementalPreprocess):
     def __init__(self, options):
         FundementalPreprocess.__init__(self, options)
-        self.starbam = self.options.out_dir + "/bam/STAR" 
+        self.starbam = self.options.out_dir + "/bam/Star" 
         self.bwabam = self.options.out_dir + "/bam/Bwa"
         self.bowtie2bam = self.options.out_dir + "/bam/Bowtie2"
         self.bowtiebam = self.options.out_dir + "/bam/Bowtie"
         self.tophatbam = self.options.out_dir + "/bam/Tophat"
         self.fastq1 = options.fastq1
         self.fastq2 = options.fastq2
-        self.fastq1fn = FastqFile(self.fastq1 ,self.samplename)
+        self.fastq1fn = FastqFile(self.fastq1 ,self.samplename, self.cfg)
         self.fastq2fn = self.fastq2
         #Use config mapper parameter to conduct mapping step one by one
         self.mapper_list = self.mapper.split(",") 
@@ -104,74 +117,101 @@ class FastqPreprocessor(FundementalPreprocess):
         """
         Ret:Need two or one fastq file, and use config file point mapper to conduct mapping step.After run this method, it will set the self.fastq_mappingBamList value.
         """
-        genome = ReffaFile(self.reffa)
+        genome = ReffaFile(self.reffa, self.cfg)
+        threads = []
         for mapper in self.mapper_list:
             mapper = mapper.upper()
             if mapper == "STAR":  # STAR mapping step need two pass, 2pass use 1pass generating SJ.out.tab to generate Genome index
-                out_bam_dir =  "%s/%s/1pass/" % (self.starbam, self.samplename)
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.star_mapping(self.cfg, out_bam_dir, self.fastq2fn)
-                out_bam_dir =  "%s/%s/2pass/" % (self.starbam, self.samplename)
-                create_dir(out_bam_dir)
-                genome_2pass_out_dir = "%s/%s/genome_2pass" % (self.starbam, self.samplename)
-                genome.star_index(self.cfg, "2pass", genome_2pass_out_dir, self.samplename, out_bam.dirname + "/SJ.out.tab")
-                reffa = genome_2pass_out_dir + "/genome" 
-                cfg = copy.deepcopy(self.cfg)
-                cfg["reffa"] = reffa
-                out_bam = self.fastq1fn.star_mapping(cfg, out_bam_dir, self.fastq2fn)
-                #If out_bam is not be generated, it can be bool value False, So need to be try/excpet to eat warning msg
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["STAR"] = out_bam 
-                except:
-                    info(str(self.fastq1fn) + " STAR mapping step run unfinished!")
+                def star_single (self = self):
+                    out_bam_dir =  "%s/%s/1pass/" % (self.starbam, self.samplename)
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.star_mapping(out_bam_dir, self.fastq2fn)
+                    out_bam_dir =  "%s/%s/2pass/" % (self.starbam, self.samplename)
+                    create_dir(out_bam_dir)
+                    genome_2pass_out_dir = "%s/%s/genome_2pass" % (self.starbam, self.samplename)
+                    genome.runid = self.fastq1fn.runid + ".genome_2pass"
+                    genome.star_index("2pass", genome_2pass_out_dir, self.samplename, out_bam.dirname + "/SJ.out.tab")
+                    reffa = genome_2pass_out_dir + "/genome" 
+                    cfg = copy.deepcopy(self.cfg)
+                    cfg["reffa"] = reffa
+                    self.fastq1fn.runid = self.fastq1fn.runid + ".2pass"
+                    out_bam = self.fastq1fn.star_mapping(out_bam_dir, self.fastq2fn)
+                    #If out_bam is not be generated, it can be bool value False, So need to be try/excpet to eat warning msg
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Star"] = out_bam 
+                    except:
+                        info(str(self.fastq1fn) + " STAR mapping step run unfinished!")
+                t1 = threading.Thread(target = star_single)
+                threads.append(t1)
             elif mapper == "BWA":
-                out_bam_dir =  self.bwabam + "/" + self.samplename
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.bwa_mapping(self.cfg, out_bam_dir, self.fastq2fn)
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["Bwa"] = out_bam 
-                except:
-                    info(str(self.fastq1fn) + " Bwa mapping step run unfinished!")
+                def bwa_single(self=self):
+                    out_bam_dir =  self.bwabam + "/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.bwa_mapping(out_bam_dir, self.fastq2fn)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Bwa"] = out_bam 
+                    except:
+                        info(str(self.fastq1fn) + " Bwa mapping step run unfinished!")
+                t2 = threading.Thread(target = bwa_single)
+                threads.append(t2)
             elif mapper == "BOWTIE2":
-                out_bam_dir =  self.bowtie2bam + "/" + self.samplename
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.bowtie2_mapping(self.cfg, out_bam_dir, self.fastq2fn)
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["Bowtie2"] = out_bam 
-                except:
-                    info(str(self.fastq1fn) + " Bwa mapping step run unfinished!")
+                def bowtie2_single(self=self):
+                    out_bam_dir =  self.bowtie2bam + "/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.bowtie2_mapping(out_bam_dir, self.fastq2fn)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Bowtie2"] = out_bam 
+                    except:
+                        info(str(self.fastq1fn) + " Bwa mapping step run unfinished!")
+                t3 = threading.Thread(target = bowtie2_single)
+                threads.append(t3)
             elif mapper == "BOWTIE":
-                out_bam_dir =  self.bowtiebam + "/" + self.samplename
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.bowtie_mapping(self.cfg, out_bam_dir, self.fastq2fn)
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["Bowtie"] = out_bam 
-                except:
-                    info(str(self.fastq1fn) + " Bowtie mapping step run unfinished!")
+                def bowtie_single(self=self):
+                    out_bam_dir =  self.bowtiebam + "/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.bowtie_mapping(out_bam_dir, self.fastq2fn)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Bowtie"] = out_bam 
+                    except:
+                        info(str(self.fastq1fn) + " Bowtie mapping step run unfinished!")
+                t4 = threading.Thread(target = bowtie_single)
+                threads.append(t4)
             elif mapper == "TOPHAT2":
-                out_bam_dir =  self.tophatbam + "2/" + self.samplename
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.tophat_mapping(self.cfg, out_bam_dir, "tophat2", self.fastq2fn)
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["Tophat2"] = out_bam
-                except:
-                    info(str(self.fastq1fn) + " Tophat mapping using bowtie2 step run unfinished!")
+                def tophat2_single(self=self):
+                    out_bam_dir =  self.tophatbam + "2/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.tophat_mapping(out_bam_dir, "tophat2", self.fastq2fn)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Tophat2"] = out_bam
+                    except:
+                        info(str(self.fastq1fn) + " Tophat mapping using bowtie2 step run unfinished!")
+                t5 = threading.Thread(target = tophat2_single)
+                threads.append(t5)
             elif mapper == "TOPHAT":
-                out_bam_dir =  self.tophatbam + "/" + self.samplename
-                create_dir(out_bam_dir)
-                out_bam = self.fastq1fn.tophat_mapping(self.cfg, out_bam_dir, "tophat", self.fastq2fn)
-                try:
-                    if out_bam.isexist():
-                        self.bamfile_list["Tophat"] = out_bam
-                except:
-                    info(str(self.fastq1fn) + " Tophat mapping using bowtie step run unfinished!")
+                def tophat_single(self=self):
+                    out_bam_dir =  self.tophatbam + "/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.tophat_mapping(out_bam_dir, "tophat", self.fastq2fn)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Tophat"] = out_bam
+                    except:
+                        info(str(self.fastq1fn) + " Tophat mapping using bowtie step run unfinished!")
+                t6 = threading.Thread(target = tophat2_single)
+                threads.append(t6)
             else:
                 info("The mapper set error in config.cfg!")
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list) # the dict of BamFile class instance 
 
 
@@ -186,118 +226,206 @@ class BamPreprocessor(FundementalPreprocess):
         """
         Ret:Need set the self.bamfile_list value, it will use picard to set  RGID = 1, RGLB = "Jhuanglab", RGPL="ILLUMINA", RGPU = "Hiseq",RGSM=self.samplename
         """
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_AddGroup.bam")
-            groupedBam = bamfile.add_read_group(self.cfg, out_bam)
-            #groupedBam.index(self.samtools)
-            self.bamfile_list[key] = groupedBam
+            def add_read_group_single(self = self):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_AddGroup.bam")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                groupedBam = bamfile.add_read_group(out_bam)
+                #groupedBam.index(self.samtools)
+                self.bamfile_list[key] = groupedBam
+            threads.append(threading.Thread(target = add_read_group_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def contig_reorder(self):
         """
         Ret:Need set the self.bamfile_list value, it will use picard to reoder bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_Reorder.bam")
-            reorderedBam = bamfile.contig_reorder(self.cfg, out_bam)
-            #reorderedBam.index(self.samtools)
-            self.bamfile_list[key] = reorderedBam 
+            def contig_reorder_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_Reorder.bam")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                reorderedBam = bamfile.contig_reorder(out_bam)
+                #reorderedBam.index(self.samtools)
+                self.bamfile_list[key] = reorderedBam 
+            threads.append(threading.Thread(target = contig_reorder_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def mark_duplicates(self):
         """
         Ret:Need set the self.bamfile_list value, it will use picard to mark duplcates with bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_MarkDup.bam")
-            out_metrics = bamfile.path.replace(replace_str, ".metrics")
-            mark_duplicatesBam = bamfile.mark_duplicates(self.cfg, out_bam, out_metrics)
-            #mark_duplicatesBam.index(self.samtools)
-            self.bamfile_list[key] = mark_duplicatesBam 
+            def mark_duplicates_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_MarkDup.bam")
+                out_metrics = bamfile.path.replace(replace_str, ".metrics")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                mark_duplicatesBam = bamfile.mark_duplicates(out_bam, out_metrics)
+                #mark_duplicatesBam.index(self.samtools)
+                self.bamfile_list[key] = mark_duplicatesBam 
+            threads.append(threading.Thread(target = mark_duplicates_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def realigner_target_creator(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK realigner_target_creator to bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_intervals = bamfile.path.replace(replace_str, ".intervals")
-            bamfile.realigner_target_creator(self.cfg, out_intervals)
-            bamfile.intervals = out_intervals
-            self.bamfile_list[key] = bamfile 
+            def realigner_target_creator_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_intervals = bamfile.path.replace(replace_str, ".intervals")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                bamfile.realigner_target_creator(out_intervals)
+                bamfile.intervals = out_intervals
+                self.bamfile_list[key] = bamfile 
+            threads.append(threading.Thread(target = realigner_target_creator_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def indel_realigner(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK indel_realigner to bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_IndelRealigner.bam")
-            indel_realignerBam = bamfile.indel_realigner(self.cfg, 
-                    bamfile.intervals, bamfile.path+"_IndelRealigner.bam")
-            self.bamfile_list[key] = indel_realignerBam 
+            def indel_realigner_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_IndelRealigner.bam")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                indel_realignerBam = bamfile.indel_realigner( 
+                        bamfile.intervals, bamfile.path+"_IndelRealigner.bam")
+                self.bamfile_list[key] = indel_realignerBam 
+            threads.append(threading.Thread(target = indel_realigner_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def recalibration(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK BaseRecalibrator to bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_grp = bamfile.path.replace(replace_str, "_Recal_data.grp")
-            bamfile.recalibration(self.cfg, out_grp)
-            bamfile.recaldata = out_grp
-            self.bamfile_list[key] = bamfile 
+            def recalibration_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_grp = bamfile.path.replace(replace_str, "_Recal_data.grp")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                bamfile.recalibration(out_grp)
+                bamfile.recaldata = out_grp
+                self.bamfile_list[key] = bamfile 
+            threads.append(threading.Thread(target = recalibration_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def print_reads(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK to generate preprocessed bam File in self.bamfile_list
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_PrintReads.bam")
-            print_readsBam = bamfile.print_reads(self.cfg, bamfile.recaldata, out_bam)
-            self.bamfile_list[key] = print_readsBam 
+            def print_reads_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_PrintReads.bam")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                print_readsBam = bamfile.print_reads(bamfile.recaldata, out_bam)
+                self.bamfile_list[key] = print_readsBam 
+            threads.append(threading.Thread(target = print_reads_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
     def split_ntrim(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK to split_ntrim with bam File in self.bamfile_list, it will set the self.split_ntrimBam value.
         """ 
+        threads = []
         for key in self.bamfile_list.keys():
-            bamfile = self.bamfile_list[key]
-            pattern = re.compile(".bam$")
-            obj = re.search(pattern, bamfile.path)
-            replace_str = obj.group()
-            out_bam = bamfile.path.replace(replace_str, "_SplitNtrim.bam")
-            splitNtrimBam = bamfile.split_ntrim(self.cfg, out_bam)
-            splitNtrimBam.index(self.cfg)
-            self.bamfile_list[key] = splitNtrimBam
+            def split_ntrim_single(self = self, key = key):
+                bamfile = self.bamfile_list[key]
+                pattern = re.compile(".bam$")
+                obj = re.search(pattern, bamfile.path)
+                replace_str = obj.group()
+                out_bam = bamfile.path.replace(replace_str, "_SplitNtrim.bam")
+                if key not in bamfile.runid:
+                    bamfile.runid = bamfile.runid + "." + key
+                splitNtrimBam = bamfile.split_ntrim(out_bam)
+                splitNtrimBam.index()
+                self.bamfile_list[key] = splitNtrimBam
+            threads.append(threading.Thread(target = split_ntrim_single))
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.bamfile_list)
 
 
 
-class pre_processor(FundementalPreprocess):
+class PreProcessor(FundementalPreprocess):
     """
     Description:
         Analysis Pre-Process Class,need a run option object initial. 
@@ -311,7 +439,8 @@ class pre_processor(FundementalPreprocess):
     """
     def __init__(self, options):
         FundementalPreprocess.__init__(self, options)
-        self.bamfile_list = {"Default":BamFile(options.in_bam, self.samplename) } 
+        if options.mode != "genomeindex":
+            self.bamfile_list = {"Default":BamFile(options.in_bam, self.samplename, self.cfg) } 
 
     def genome_pre_process(self):
         """
@@ -365,7 +494,7 @@ class pre_processor(FundementalPreprocess):
         self.bamfile_list = bamfiles.split_ntrim()
         self.split_ntrimBam = self.bamfile_list 
         return(self.bamfile_list)
-class pre_processor_somatic(FundementalPreprocess):
+class PreProcessorSomatic(FundementalPreprocess):
     """
     Description:
         Analysis Pre-Process Class,need a run option object initial. 
@@ -379,16 +508,17 @@ class pre_processor_somatic(FundementalPreprocess):
     """
     def __init__(self, options):
         FundementalPreprocess.__init__(self, options)
-        self.case_bamfile_list = {"Bwa":BamFile(options.casein_bam, self.samplename + "A")}
-        self.control_bamfile_list = {"Bwa":BamFile(options.controlin_bam, self.samplename + "C")}
-        self.caseoptions = copy.deepcopy(options)
-        self.caseoptions.fastq1 = self.options.casefastq1 
-        self.caseoptions.fastq2 = self.options.casefastq2 
-        self.caseoptions.samplename = options.samplename + "A"
-        self.controloptions = copy.deepcopy(options)
-        self.controloptions.fastq1 = options.controlfastq1 
-        self.controloptions.fastq2 = options.controlfastq2 
-        self.controloptions.samplename = options.samplename + "C"
+        if options.mode != "genomeindex":
+            self.case_bamfile_list = {"Bwa":BamFile(options.case_in_bam, self.samplename + "A", self.cfg)}
+            self.control_bamfile_list = {"Bwa":BamFile(options.control_in_bam, self.samplename + "C", self.cfg)}
+            self.caseoptions = copy.deepcopy(options)
+            self.caseoptions.fastq1 = self.options.case_fastq1 
+            self.caseoptions.fastq2 = self.options.case_fastq2 
+            self.caseoptions.samplename = options.samplename + "A"
+            self.controloptions = copy.deepcopy(options)
+            self.controloptions.fastq1 = options.control_fastq1 
+            self.controloptions.fastq2 = options.control_fastq2 
+            self.controloptions.samplename = options.samplename + "C"
 
     def genome_pre_process(self):
         """
@@ -398,83 +528,200 @@ class pre_processor_somatic(FundementalPreprocess):
         Genomeprocess.preprocess()
 
     def fastq_mapping(self):
-        #case
-        caseoptions = self.caseoptions
-        caseFastqmapping = FastqPreprocessor(caseoptions) 
-        self.case_bamfile_list = caseFastqmapping.preprocess()
-        self.casefastq_mappingBamList = self.case_bamfile_list 
-        #control
-        controloptions = self.controloptions
-        controlFastqmapping = FastqPreprocessor(controloptions) 
-        self.control_bamfile_list = controlFastqmapping.preprocess()
-        self.controlfastq_mappingBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            #case
+            caseoptions = self.caseoptions
+            caseFastqmapping = FastqPreprocessor(caseoptions) 
+            self.case_bamfile_list = caseFastqmapping.preprocess()
+            self.casefastq_mappingBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            #control
+            controloptions = self.controloptions
+            controlFastqmapping = FastqPreprocessor(controloptions) 
+            self.control_bamfile_list = controlFastqmapping.preprocess()
+            self.controlfastq_mappingBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def add_read_group(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.add_read_group()
-        self.caseadd_read_groupBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.add_read_group()
-        self.controladd_read_groupBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.add_read_group()
+            self.caseadd_read_groupBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.add_read_group()
+            self.controladd_read_groupBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def contig_reorder(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.contig_reorder()
-        self.casecontig_reorderBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.contig_reorder()
-        self.controlcontig_reorderBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.contig_reorder()
+            self.casecontig_reorderBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.contig_reorder()
+            self.controlcontig_reorderBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def mark_duplicates(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.mark_duplicates()
-        self.casemark_duplicatesBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.mark_duplicates()
-        self.controlmark_duplicatesBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.mark_duplicates()
+            self.casemark_duplicatesBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.mark_duplicates()
+            self.controlmark_duplicatesBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def realigner_target_creator(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.realigner_target_creator()
-        self.caserealigner_target_creatorBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.realigner_target_creator()
-        self.controlrealigner_target_creatorBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.realigner_target_creator()
+            self.caserealigner_target_creatorBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.realigner_target_creator()
+            self.controlrealigner_target_creatorBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def indel_realigner(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.indel_realigner()
-        self.caseindel_realignerBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.indel_realigner()
-        self.controlindel_realignerBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.indel_realigner()
+            self.caseindel_realignerBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.indel_realigner()
+            self.controlindel_realignerBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def recalibration(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.recalibration()
-        self.caserecalibrationBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.recalibration()
-        self.controlrecalibrationBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.recalibration()
+            self.caserecalibrationBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.recalibration()
+            self.controlrecalibrationBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def print_reads(self):
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.print_reads()
-        self.caseprint_readsBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.print_reads()
-        self.controlprint_readsBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.print_reads()
+            self.caseprint_readsBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.print_reads()
+            self.controlprint_readsBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
     def split_ntrim(self):
         """
         Ret:Need set the self.bamfile_list value, it will use GATK to split_ntrim with bam File in self.bamfile_list, it will set the self.split_ntrimBam value.
         """ 
-        case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
-        self.case_bamfile_list = case_bamfiles.split_ntrim()
-        self.casesplit_ntrimBamList = self.case_bamfile_list 
-        control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
-        self.control_bamfile_list = control_bamfiles.split_ntrim()
-        self.controlsplit_ntrimBamList = self.control_bamfile_list 
+        def case_func(self = self):
+            case_bamfiles = BamPreprocessor(self.caseoptions, self.case_bamfile_list)
+            self.case_bamfile_list = case_bamfiles.split_ntrim()
+            self.casesplit_ntrimBamList = self.case_bamfile_list 
+        def control_func(self = self):
+            control_bamfiles = BamPreprocessor(self.controloptions, self.control_bamfile_list)
+            self.control_bamfile_list = control_bamfiles.split_ntrim()
+            self.controlsplit_ntrimBamList = self.control_bamfile_list 
+        threads = []
+        t1 = threading.Thread(target = case_func) 
+        t2 = threading.Thread(target = control_func) 
+        threads.append(t1)
+        threads.append(t2)
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
         return(self.case_bamfile_list,self.control_bamfile_list)
 
 
@@ -483,7 +730,7 @@ def pre_process(options):
     pre_process:Be imported in rnaseq.py, conduct the genome index, fastq mapping, several of bam file preprocess step.
     """
     cfg = get_config(options.config)
-    preprocess =  pre_processor(options)
+    preprocess =  PreProcessor(options)
     try:
         genome_process = options.genome_index #Genomeindex be set in rnaseq.py mode parameter
     except:
@@ -502,7 +749,9 @@ def pre_process(options):
     print_reads = options.bamprocess[7] 
     ############# Value equal 0 not to be run, and equal 1 will be run ##########
     if genome_process != "0":
-        preprocess.genome_pre_process()
+        status = preprocess.genome_pre_process()
+    if options.mode == "genomeindex":
+        return(status)
     if fastq_mapping != "0":
         preprocess.fastq_mapping()
     #Bam process
@@ -527,7 +776,7 @@ def pre_process(options):
         bamfile = preprocess.bamfile_list[key]
         processed_bam =  bamfile#.dirname + "/" + bamfile.samplename+"_preprocessed.bam"
         if bamfile.isexist(): #and bamfile.ln(processed_bam, bamfile.samplename):
-            bamfile = BamFile(processed_bam, bamfile.samplename)
+            bamfile = BamFile(processed_bam, bamfile.samplename, cfg)
             #bamfile.index(cfg["samtools"])
             preprocess.bamfile_list[key] = bamfile
     return(preprocess.bamfile_list) 
@@ -537,9 +786,9 @@ def pre_process_somatic(options):
     pre_process_somatic:Be imported in somatic.py, conduct the genome index, fastq mapping, several of bam file preprocess step.
     """
     cfg = get_config(options.config)
-    preprocess =  pre_processor_somatic(options)
+    preprocess =  PreProcessorSomatic(options)
     try:
-        genome_process = options.Genomeindex #Genomeindex be set in somatic.py mode parameter
+        genome_process = options.genome_index #Genomeindex be set in somatic.py mode parameter
     except:
         genome_process = 0
     try:
@@ -556,7 +805,10 @@ def pre_process_somatic(options):
     print_reads = options.bamprocess[7] 
     ############# Value equal 0 not to be run, and equal 1 will be run ##########
     if genome_process != "0":
-        preprocess.genome_pre_process()
+        status = preprocess.genome_pre_process()
+    if options.mode == "genomeindex":
+        return(status)
+
     if fastq_mapping != "0":
         preprocess.fastq_mapping()
     #Bam process
@@ -577,19 +829,30 @@ def pre_process_somatic(options):
     if print_reads != "0":
         preprocess.print_reads()
     #Get copy and rename
+    threads = []
     for key in preprocess.case_bamfile_list.keys():
-        case_bamfile = preprocess.case_bamfile_list[key]
-        control_bamfile = preprocess.control_bamfile_list[key]
-        processed_bam =  case_bamfile#case_bamfile.dirname + "/" + case_bamfile.samplename#+"_preprocessed.bam"
-        if case_bamfile.isexist(): #and case_bamfile.ln(processed_bam, case_bamfile.samplename):
-            case_bamfile = BamFile(processed_bam, case_bamfile.samplename)
-            #case_bamfile.index(cfg["samtools"])
-            preprocess.case_bamfile_list[key] = case_bamfile
-        processed_bam =  control_bamfile#control_bamfile.dirname + "/" + control_bamfile.samplename#+"_preprocessed.bam"
-        if control_bamfile.isexist(): #and control_bamfile.ln(processed_bam, control_bamfile.samplename):
-            control_bamfile = BamFile(processed_bam, control_bamfile.samplename)
-            #control_bamfile.index(cfg["samtools"])
-            preprocess.control_bamfile_list[key] = control_bamfile
+        def case_func(preprocess = preprocess, key = key):
+            case_bamfile = preprocess.case_bamfile_list[key]
+            processed_bam =  case_bamfile#case_bamfile.dirname + "/" + case_bamfile.samplename#+"_preprocessed.bam"
+            if case_bamfile.isexist(): #and case_bamfile.ln(processed_bam, case_bamfile.samplename):
+                case_bamfile = BamFile(processed_bam, case_bamfile.samplename, cfg)
+                #case_bamfile.index(cfg["samtools"])
+                preprocess.case_bamfile_list[key] = case_bamfile
+        def control_func(preprocess = preprocess, key =key):
+            control_bamfile = preprocess.control_bamfile_list[key]
+            processed_bam =  control_bamfile#control_bamfile.dirname + "/" + control_bamfile.samplename#+"_preprocessed.bam"
+            if control_bamfile.isexist(): #and control_bamfile.ln(processed_bam, control_bamfile.samplename):
+                control_bamfile = BamFile(processed_bam, control_bamfile.samplename, cfg)
+                #control_bamfile.index(cfg["samtools"])
+                preprocess.control_bamfile_list[key] = control_bamfile
+        threads.append(threading.Thread(target = case_func))
+        threads.append(threading.Thread(target = control_func)) 
+        for t in threads:
+            t.setDaemon(True)
+            t.start()
+
+        for t in threads:
+            t.join()
     return(preprocess.case_bamfile_list, preprocess.control_bamfile_list)
 
 def pre_process_self(options):
@@ -597,7 +860,7 @@ def pre_process_self(options):
     pre_process_self:Be useed, when run the module of self, using options.dataprocess to control the step be runned.
     """
     cfg = get_config(options.config)
-    preprocess =  pre_processor(options)
+    preprocess =  PreProcessor(options)
     genome_process = options.dataprocess[0]
     fastq_mapping = options.dataprocess[1]
     add_read_group = options.dataprocess[2]
@@ -609,7 +872,9 @@ def pre_process_self(options):
     recalibration = options.dataprocess[8] 
     print_reads = options.dataprocess[9] 
     if genome_process != "0":
-        preprocess.genome_pre_process()
+        status = preprocess.genome_pre_process()
+    if options.mode == "genomeindex":
+        return(status)
     if fastq_mapping != "0":
         preprocess.fastq_mapping()
     if add_read_group != "0":
@@ -632,7 +897,7 @@ def pre_process_self(options):
         bamfile = preprocess.bamfile_list[key]
         processed_bam =  bamfile#bamfile.dirname + "/" + bamfile.samplename#+"_preprocessed.bam"
         if bamfile.isexist(): #and bamfile.ln(processed_bam, bamfile.samplename):
-            bamfile = BamFile(processed_bam, bamfile.samplename)
+            bamfile = BamFile(processed_bam, bamfile.samplename, cfg)
             #bamfile.index(cfg["samtools"])
             preprocess.bamfile_list[key] = bamfile
         else:

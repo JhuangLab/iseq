@@ -37,9 +37,12 @@ def prepare_optparser ():
     """Prepare optparser object. New options will be added in this
     function first.
     """
-    usage = "usage: %prog -c config.cfg -s A01A -m Fastq2vcf -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o vcf"
-    description = "Please set the sample name. e.g. L04A, L04C, L04T."
-    optparser = OptionParser(version = "rnaseq 1.0", description = description, usage = usage, add_help_option = False)
+    usage = "Usage: \n       %prog -c config.cfg -s A01A -m Fastq2vcf -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -s A01A -m Fastq2bam -1 A01_1.fq -2 A02_2.fq --bamprocess 00101111 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -s A01A -m Bam2vcf --in_bam A01.bam --bamprocess 00000000 -o outdir \n"
+    usage = usage + "       %prog -c config.cfg -m Genomeindex \n"
+    description = "iseq is an integrated analysis pipeline for NGS panel sequencing data. This is the no control mode, fastq and bam can be inpued. If you have any question about this tool, please contact us (lee_jianfeng@sjtu.edu.cn)"
+    optparser = OptionParser(version = "0.1.0", description = description, usage = usage, add_help_option = False)
     optparser.add_option("-h", "--help", action = "help", help = "Show this help message and exit.")
     optparser.add_option("-c", "--config", dest = "config", default = "config.cfg" ,type = "string",
                          help = "Set the config File.[config.cfg]")
@@ -55,8 +58,8 @@ def prepare_optparser ():
                          help = "Need point 8 digit number, eg. 00101111:  Add Read Group, Reorder Contig, Mark Duplicates, SplitNtrim ,RealignerTargetCreator,IndelRealigner,Recalibration,PrintReads, step one by one;01000000 only conduct Reorder contig; 00010000:Only conduct SplitNtrim step.[00101111].If --mode=Bamprocess,this parameter is required")
     optparser.add_option("-i", "--in_bam", dest = "in_bam" ,type = "string",
                          help = "You can set this to your bam file path.(If fastq1 and is empty, the in_bam is required!)")
-    optparser.add_option("-o", "--out_dir", dest = "out_dir" ,type = "string", default = "vcf",
-                         help = "Set the vcf file out_dir.[vcf]")
+    optparser.add_option("-o", "--out_dir", dest = "out_dir" ,type = "string", default = "outdir",
+                         help = "Set the vcf file out_dir.[outdir]")
     return(optparser)
 def opt_validate (optparser):
     """Validate options from a OptParser object.
@@ -66,23 +69,40 @@ def opt_validate (optparser):
     if not options.config:
         optparser.print_help()
         sys.exit(1)
-    elif not options.samplename:
+    elif not isexist(options.config):
         optparser.print_help()
+        print("Error:%s is not exist." % options.config)
         sys.exit(1)
-    elif (not options.fastq1 and not options.fastq2 and not options.in_bam) and options.mode != "Genomeindex":
+
+    if options.mode is not None:
+        options.mode = options.mode.lower()
+    else:
         optparser.print_help()
+        print("Error:Please set mode correctly.")
         sys.exit(1)
-    elif not options.mode:  
+
+    if options.mode == "genomeindex":
+        return(options)
+
+    if not options.samplename:
         optparser.print_help()
+        print("Error:Please set samplename correctly.")
         sys.exit(1)
-    elif options.mode.lower() not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess"]:  
+    elif not options.fastq1 and not options.fastq2 and not options.in_bam:
         optparser.print_help()
+        print("Error:Please set fastq1/fastq2 or in_bam correctly.")
         sys.exit(1)
-    elif options.mode in ["Fastq2vcf","Fastq2bam"] and not options.fastq1 and not options.fastq2: 
+    elif options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess"]:  
         optparser.print_help()
+        print("Error:mode are not in genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess.")
         sys.exit(1)
-    elif options.mode in ["Bam2vcf","Bamprocess"] and not options.in_bam: 
+    elif options.mode in ["fastq2vcf","fastq2bam"] and not options.fastq1 and not options.fastq2: 
         optparser.print_help()
+        print("Error:Please set fastq1/fastq2 correctly.")
+        sys.exit(1)
+    elif options.mode in ["bam2vcf","bamprocess"] and not options.in_bam: 
+        optparser.print_help()
+        print("Error:Please set in_bam correctly.")
         sys.exit(1)
     return(options)
 
@@ -90,9 +110,9 @@ def panel(options=""):
     if options == "":
         options = opt_validate(prepare_optparser())
     cfg = get_config(options.config)
-    vcfout_dir = options.out_dir
-    ################ Genome Index Mode #################
+    vcf_out_dir = options.out_dir
     options.mode = options.mode.lower()
+    ################ Genome Index Mode #################
     if options.mode == "genomeindex":
         options.genome_index = "1"
         options.fastq_mapping = "0"
@@ -138,45 +158,88 @@ def panel(options=""):
         options.mpileup = "0"
 
     ################ Main Region ###################### 
-    bamfile_list = pre_process(options)
-    options.seq_type = "dna"
-    if options.variantcaller == "1":
-        for key in bamfile_list.keys():
-            bamfile = bamfile_list[key]
-            options.in_bam = bamfile
-            options.out_dir = vcfout_dir + "/" + key
-            vcffile_list = variant_caller(options)
-            for vcf in vcffile_list.keys():
-                key = key.capitalize()
-                vcffile = vcffile_list[vcf]
-                if vcffile:
-                    options.out_dir = vcffile.dirname + "/" 
-                    options.case_vcf = str(vcffile)
-                    vcf = vcf.capitalize()
-                    if vcf in "UnifiedGenotyper":
-                        options.vcffilter = "wespipeline"
-                    options.exononly = True
-                    if vcf in "Varscan":
-                        options.vcfformat = "vcf4old"
-                    if vcf in "Lofreq":
-                        options.exononly = False
-                    success = 0
-                    finalfn = vcf_filter(options)
-                    finalout_dir = options.out_dir + "/finalResult"
-                    create_dir(finalout_dir)
-                    final_exon_fn = FundementalFile((str(finalfn)).replace("txt","exon.txt"))
-                    final_exon_fn.cp("%s/%s.exon.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
-                    finalfn.cp("%s/%s.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
-                    success = 1
-        if success:
-            collect_result_file(vcfout_dir, options, bamfile_list, "germline", 2, 0.04)
+    mapper = cfg["mapper"]
+    mapper = mapper.split(",")
+    threads_mapper = []
+    bamfiles_pool = {}
+    if options.mode == "genomeindex":
+       status = pre_process(options)
+       return(status)
+    else:
+        for i in mapper:
+            options = copy.deepcopy(options)
+            options.mapper = i
+            def func(options = options, bamfiles_pool = bamfiles_pool):
+                options = copy.deepcopy(options)
+                bamfile_list = pre_process(options)
+                bamfiles_pool.update(bamfile_list)
+                options.seq_type = "dna"
+                if options.variantcaller == "1":
+                    threads_bam = []
+                    for key in bamfile_list.keys():
+                        def single(bamfile_list = bamfile_list, options = options, key = key):
+                            options = copy.deepcopy(options)
+                            bamfile = bamfile_list[key]
+                            options.in_bam = str(bamfile)
+                            options.out_dir = vcf_out_dir + "/call/" + key
+                            options.runid = "%s.%s" % (options.samplename, key)
+                            vcffile_list = variant_caller(options)
+                            threads_vcf = []
+                            for vcf in vcffile_list.keys():
+                                def func_vcf(vcf = vcf, key = key, vcffile_list = vcffile_list, options = options):
+                                    options = copy.deepcopy(options)
+                                    key = key.capitalize()
+                                    vcffile = vcffile_list[vcf]
+                                    if vcffile:
+                                        options.out_dir = vcffile.dirname + "/" 
+                                        options.case_vcf = str(vcffile)
+                                        vcf = vcf.capitalize()
+                                    if vcf in "UnifiedGenotyper":
+                                        pass
+                                        #options.vcffilter = "wespipeline"
+                                    options.exononly = True 
+                                    if vcf in "varscan":
+                                        options.vcfformat = "vcf4old"
+                                    if vcf in "lofreq":
+                                        options.exononly = False
+                                    options.runid = "%s.%s.%s" % (options.samplename, key, vcf)
+                                    finalfn = vcf_filter(options)
+                                    finalout_dir = options.out_dir + "/finalResult"
+                                    create_dir(finalout_dir)
+                                    final_exon_fn = FundementalFile((str(finalfn)).replace("txt","exon.txt"))
+                                    final_exon_fn.cp("%s/%s.exon.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
+                                    finalfn.cp("%s/%s.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
+                                threads_vcf.append(threading.Thread(target = func_vcf))
+                            for t in threads_vcf:
+                                t.setDaemon(True)
+                                t.start()
+                            for t in threads_vcf:
+                                t.join()
+                        threads_bam.append(threading.Thread(target = single))
+                    for t in threads_bam:
+                        t.setDaemon(True)
+                        t.start()
+                    for t in threads_bam:
+                        t.join()
+            threads_mapper.append(threading.Thread(target = func))
+        for t in threads_mapper:
+            t.setDaemon(True)
+            t.start()
+        count = 0
+        for t in threads_mapper:
+            t.join()
+            info("%s %s full process be finished, wating another mapper or continue.", options.samplename, mapper[count])
+            count = count + 1
+        collect_result_file(vcf_out_dir, options, bamfiles_pool, "germline", 2, 0.04)
 
 def main():
+    create_dir("%s/log" % os.getcwd())
     panel()
 
 
 if __name__ == "__main__":
     try:
+        create_dir("%s/log" % os.getcwd())
         main()
         info ("Successful run!!!")
     except KeyboardInterrupt:

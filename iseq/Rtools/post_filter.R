@@ -85,7 +85,7 @@ getmapcaller <- function(csv.out){
 }
 sortcaller <- function(caller){
     result <- ""
-    order <- "pindel,tvc,varscan,mutect,lofreq,HaplotypeCaller,UnifiedGenotyper"
+    order <- "Pindel,Tvc,Varscan,Mutect,Lofreq,Haplotypecaller,Unifiedgenotyper"
     order <- str_split(order,",")[[1]]
     for(i in order){
        if(str_detect(caller,i)){
@@ -111,6 +111,9 @@ flog.info(paste("Writing in csv files:",paste0(as.character(opt$outputcsv),".del
 write.table(csv.out.indel, paste0(as.character(opt$outputcsv),".del"),sep="\t",col.names=T,row.names=F,quote=F)
 csv.out <- csv.out[postfil,]
 csv.out <- getmapcaller( csv.out ) 
+if(nrow(csv.out) == 0){
+  q()
+}
 for(i in 1:nrow(csv.out)){
     csv.out[i,"caller"] <- sortcaller(csv.out[i,"caller"])
 }

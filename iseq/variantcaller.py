@@ -85,13 +85,13 @@ class FundementalCaller(object):
             self.mode = mode
         else:
             self.mode = False
-    def set_bamfile(self, samplename, case="", control=""):
+    def set_bamfile(self, samplename, case="", control="", runid = ""):
         if case != "":
-            self.case = BamFile(case, samplename)
+            self.case = BamFile(case, samplename, self.cfg, runid)
             if not self.case.isexist():
                 info(self.case.path + " is not exists! Please check the path!")
         if control!="":
-            self.control = BamFile(control, samplename)
+            self.control = BamFile(control, samplename, self.cfg, runid)
             if not self.control.isexist():
                 info(self.control.path + " is not exists! Please check the path!")
     def set_config(self, cfg):  #if have two class level, the method can be merge in __init__
@@ -100,36 +100,32 @@ class FundementalCaller(object):
         self.seq_type = seq_type
     def call_variant(self):
         if self.mode == "germline":
-            msg = "Running %s in %s mode to %s." % (self.caller_name, self.mode, self.case)
-            info (msg)
             out_vcf=""
             if self.caller_name == "tvc":   # For Ion Torrent only
-                self.case.index(self.cfg)
-                out_vcf = self.case.torrent_caller(self.cfg, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.torrent_caller(self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "haplotypecaller":
-                self.case.index(self.cfg)
-                out_vcf = self.case.haplotype_caller(self.cfg, self.out_dir, seq_type = self.seq_type)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.haplotype_caller(self.out_dir, seq_type = self.seq_type)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "unifiedgenotyper":
-                self.case.index(self.cfg)
-                out_vcf = self.case.unifiedgenotyper_caller(self.cfg, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.unifiedgenotyper_caller(self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "varscan":
-                self.case.index(self.cfg)
-                out_vcf = self.case.varscan_caller(self.cfg, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.varscan_caller(self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "lofreq":
-                self.case.index(self.cfg)
-                out_vcf = self.case.lofreq_caller(self.cfg, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.lofreq_caller(self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "pindel":
-                self.case.index(self.cfg)
-                out_vcf = self.case.pindel_caller(self.cfg, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                out_vcf = self.case.pindel_caller(self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if out_vcf:
-                msg = "Running %s in %s mode to %s sunccessful!" % (self.caller_name, self.mode, self.case)
-                info(msg) 
                 return(out_vcf)
             else:
                 msg = "Running %s in %s mode to %s fail! Can't generate the %s file." % (
@@ -137,50 +133,47 @@ class FundementalCaller(object):
                 return(False)
         elif self.mode == "somatic":
             out_vcf=""
-            msg = "Running %s in %s mode to %s and %s." % (self.caller_name, self.mode, self.case, self.control)
             if self.caller_name == "mutect":
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.mutect_caller(self.cfg, self.control, self.out_dir)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.mutect_caller(self.control, self.out_dir)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "haplotypecaller":
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.haplotype_caller(self.cfg,
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.haplotype_caller(
                         self.out_dir, self.control, seq_type = self.seq_type)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "unifiedgenotyper":
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.unifiedgenotyper_caller(self.cfg,
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.unifiedgenotyper_caller(
                          self.out_dir, self.control.path)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "varscan":
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.varscan_caller(self.cfg,
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.varscan_caller(
                          self.out_dir, self.control.path)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "lofreq":
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.lofreq_caller(self.cfg,
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.lofreq_caller(
                          self.out_dir, self.control.path)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "tvc":   # For Ion Torrent only
-                self.case.index(self.cfg)
-                self.control.index(self.cfg)
-                out_vcf = self.case.torrent_caller(self.cfg, 
+                self.case.index()
+                self.control.index()
+                out_vcf = self.case.torrent_caller(
                         self.out_dir, self.control.path)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if self.caller_name == "pindel":
-                self.case.index(self.samtools)
-                out_vcf = self.case.pindel_caller(self.cfg,
+                self.case.index()
+                out_vcf = self.case.pindel_caller(
                         self.out_dir, self.control.path)
-                out_vcf = VcfFile(out_vcf, self.case.samplename)
+                out_vcf = VcfFile(out_vcf, self.case.samplename, self.cfg)
             if out_vcf:
-                msg = "Running %s in %s mode to %s and %s sunccessful!" % (self.caller_name, self.mode, self.case, self.control)
-                info(msg)
                 return(out_vcf)
             else:
                 msg = "Running %s in %s mode to %s fail! Can't generate the %s file." % (
@@ -197,14 +190,23 @@ def variant_caller(options):
         return(False)
     caller_list = caller.split(",")
     vcf_list = {}
+    threads = []
     for caller in caller_list:
-        variantcaller = FundementalCaller(caller)
-        variantcaller.set_config(cfg)
-        variantcaller.set_seq_type(seq_type)
-        variantcaller.set_out_dir(out_dir + "/" + samplename + "/" + caller.capitalize())
-        variantcaller.set_bamfile(samplename, in_bam)
-        # VcfFile object dict, using all mapped bam file to generate vcf file 
-        vcf_list[caller] = variantcaller.call_variant()        
+        def func(caller = caller, cfg = cfg, seq_type = seq_type, out_dir = out_dir, samplename = samplename, in_bam = in_bam):
+            variantcaller = FundementalCaller(caller)
+            variantcaller.set_config(cfg)
+            variantcaller.set_seq_type(seq_type)
+            variantcaller.set_out_dir(out_dir + "/" + samplename + "/" + caller.capitalize())
+            variantcaller.set_bamfile(samplename, in_bam, runid = options.runid)
+            # VcfFile object dict, using all mapped bam file to generate vcf file 
+            vcf_list[caller] = variantcaller.call_variant() 
+        threads.append(threading.Thread(target = func))
+    for t in threads:
+        t.setDaemon(True)
+        t.start()
+
+    for t in threads:
+        t.join()
     return(vcf_list)
 
 def variant_caller_somatic(options):
@@ -213,22 +215,32 @@ def variant_caller_somatic(options):
     out_dir = options.out_dir
     seq_type = options.seq_type
     samplename = options.samplename
-    casein_bam, controlin_bam = options.in_bam.split(",")
-    if not casein_bam or not controlin_bam:
+    case_in_bam, control_in_bam = options.in_bam.split(",")
+    if not case_in_bam or not control_in_bam:
         return(False)
     caller_list = caller.split(",")
     vcf_list = {}
+    threads = []
     for caller in caller_list:
-        variantcaller = FundementalCaller(caller)
-        variantcaller.set_caller_mode("somatic")
-        variantcaller.set_config(cfg)
-        variantcaller.set_seq_type(seq_type)
-        variantcaller.set_out_dir(out_dir + "/" + getid(samplename) + "/" + caller.capitalize())
-        variantcaller.set_bamfile(getid(samplename) + "T", casein_bam,controlin_bam)
-        # VcfFile object dict, using all mapped bam file to generate vcf file 
-        vcf_list[caller] = variantcaller.call_variant()        
-    return(vcf_list)
+        def func(caller = caller, cfg = cfg, seq_type = seq_type, out_dir = out_dir, 
+                samplename = samplename, case_in_bam = case_in_bam, control_in_bam = control_in_bam):
+            variantcaller = FundementalCaller(caller)
+            variantcaller.set_caller_mode("somatic")
+            variantcaller.set_config(cfg)
+            variantcaller.set_seq_type(seq_type)
+            variantcaller.set_out_dir(out_dir + "/" + getid(samplename) + "/" + caller.capitalize())
+            variantcaller.set_bamfile(getid(samplename) + "T", case_in_bam,control_in_bam, options.runid)
+            # VcfFile object dict, using all mapped bam file to generate vcf file 
+            vcf_list[caller] = variantcaller.call_variant()        
+        threads.append(threading.Thread(target = func))
+    for t in threads:
+        t.setDaemon(True)
+        t.start()
 
+    for t in threads:
+        t.join()
+
+    return(vcf_list)
 
 def main():
     options = opt_validate(prepare_optparser())

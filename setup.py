@@ -112,6 +112,7 @@ setup(
             'variantcaller=iseq.variantcaller:main',
             'refinement=iseq.refinement:main',
             'panel=iseq.panel:main',
+            'panel_somatic=iseq.panel_somatic:main',
         ]
     },
 )

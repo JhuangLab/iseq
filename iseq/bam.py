@@ -6,7 +6,7 @@ This code is free software; you can redistribute it and/or modify it
 under the terms of the MIT License.
 @bam: Bam File Class
 @status: experimental
-@version: 0.0.1
+@version: 0.1.0
 @author: Jianfeng Li
 @contact: lee_jianfeng@sjtu.edu.cn
 """
@@ -41,43 +41,60 @@ class BamFile(FundementalFile):
             lofreq_caller:Use LoFreq to conduct Variant Discovery Step.
             pindel_caller:Use Pindel to conduct Variant Discovery Step.
     """
-    def __init__(self, path, samplename, runid = None):
+    def __init__(self, path, samplename, config_dict = "", runid = None):
         if runid is None:
             runid = samplename
-        FundementalFile.__init__(self, path, runid)
+        FundementalFile.__init__(self, path, config_dict, runid)
         self.samplename = samplename
     ################################################# Fundemental Function ################################################
-    def index(self ,config_dict):
+    def index(self):
         """
         Ret:Use samtool index *.bam file and generate *.bam.bai
         """
+        config_dict = self.config_dict
         samtools = config_dict["samtools"]
-        info("Running the samtools index step for " + self.path)
         cmd = "%s index %s" % (samtools ,self.path)
         if not isexist(self.path + ".bai") and not isexist(self.path[0:-3]+"bai"):
+            info("Running the samtools index step for " + self.path)
             runcmd(cmd)
             savecmd(cmd, self.samplename)
         else:
             savecmd(cmd, self.samplename)
         if isexist(self.path[0:-3]+"bai"):
-            info("Run the samtools index step successful!")
             return(self.path[0:-3]+"bai")
         elif isexist(self.path + ".bai"):
-            info("Run the samtools index step successful!")
             return(self.path + ".bai")
         else:
-            info("Run the samtools index step fail!")
             return(False)
 
-    def mpileup(self, config_dict, out_fn):
+    def sort(self, out_bam):
+        """
+        Ret:Use samtool sort *.bam file and generate *.bam.bai
+        """
+        config_dict = self.config_dict
+        samtools = config_dict["samtools"]
+        info("Running the samtools sort step for " + self.path)
+        cmd = "%s sort -@ 30 -o %s %s" % (samtools, out_bam, self.path)
+        if not isexist(out_bam):
+            runcmd(cmd)
+            savecmd(cmd, self.samplename)
+        else:
+            savecmd(cmd, self.samplename)
+        if isexist(out_bam):
+            return(BamFile(out_bam, self.samplename, config_dict))
+        else:
+            return(False)
+
+    def mpileup(self, out_fn):
         """
         Ret:Use samtool mpileup *.bam file and generate *.bam.mpileup
         """
+        config_dict = self.config_dict
         samtools = config_dict["samtools"]
         reffa = config_dict["reffa"]
         intervals = config_dict["intervals"]
         info("Running the samtools mpileup step for " + self.path)
-        out_fn = MpileupFile(out_fn, self.samplename) 
+        out_fn = MpileupFile(out_fn, self.samplename, config_dict) 
         if isexist(intervals):
             cmd = "%s mpileup -q 1 -l %s -f %s %s > %s" % (samtools, intervals, reffa, self.path, out_fn.path)
         else:
@@ -91,26 +108,26 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd ,self.samplename)
             if not out_fn.isexist():
-                info("Samtools mpileup step for %s fail!" %(self.path))
                 return(False)
-        info("Run the Samtools mpileup step successful!")
         return(out_fn)
-
 
     def __str__(self):
         return(self.path)
     ################################################# PreProcesss Function #########################################################
-    def contig_reorder(self, config_dict, out_bam):
+    def contig_reorder(self, out_bam):
         """
         Ret:Use picard to reorder the BAM file according the reference file.(BOTH DNA and RNA) 
         """
+        config_dict = self.config_dict
         reffa = config_dict["reffa"]
         java = config_dict["java"]
         picard = config_dict["picard"]
-        info("Now running the contig reorder by picard for %s!" % self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam, self.samplename)
+        info("Running the contig reorder by picard for %s!" % self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam, self.samplename, config_dict)
         cmd = "%s -jar %s ReorderSam I=%s O=%s REFERENCE=%s" %(java, picard, in_bam.path, out_bam.path, reffa) 
+        log = " &> %s/log/%s.contig_reorder.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd ,self.samplename)
         elif not in_bam.isexist():
@@ -120,21 +137,21 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd ,self.samplename)
             if not out_bam.isexist():
-                info("Contig Reorder step for %s fail!" %(self.path))
                 return(False)
-        info("Running the contig reorder successful!")
         return(out_bam) # BamFile Class instance 
-    def add_read_group(self, config_dict, out_bam, RGID = 1, RGLB = "Jhuanglab", RGPL="ILLUMINA", RGPU = "Hiseq"):
+    def add_read_group(self, out_bam, RGID = 1, RGLB = "Jhuanglab", RGPL="ILLUMINA", RGPU = "Hiseq"):
         """
         Ret:Use picard to add Read Groups,RGID,RGLB,RGPL,RGPU,RGSM in BAM file header.(Both DNA and RNA) 
         """
+        config_dict = self.config_dict
+        reffa = config_dict["reffa"]
         java = config_dict["java"]
         picard = config_dict["picard"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Now running add_read_group step for " + self.path)
+        info("Running add_read_group step for " + self.path)
         RGSM = self.samplename
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam, self.samplename)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam, self.samplename, config_dict)
         cmd = "%s -Xmx%s -jar %s AddOrReplaceReadGroups \
                    I=%s \
                    O=%s \
@@ -143,6 +160,8 @@ class BamFile(FundementalFile):
                    RGPL=%s \
                    RGPU=%s \
                    RGSM=%s" %(java, java_max_mem, picard, self.path, out_bam, RGID, RGLB, RGPL, RGPU, RGSM)
+        log = " &> %s/log/%s.add_read_group.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
@@ -152,21 +171,22 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
-                info("add_read_group step for %s fail!" %(self.path))
                 return(False)
-        info("Add Read Group run successful!")
         return(out_bam) # BamFile Class instance 
-    def mark_duplicates(self, config_dict, out_bam, metrics):
+    def mark_duplicates(self, out_bam, metrics):
         """
         Ret:Use picard to Mark Duplcates of the BAM file. 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         picard = config_dict["picard"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Now running mark_duplicates step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam ,self.samplename) 
+        info("Running mark_duplicates step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam ,self.samplename, config_dict) 
         cmd = "%s -Xmx%s -jar %s MarkDuplicates I=%s O=%s  CREATE_INDEX=true VALIDATION_STRINGENCY=SILENT M=%s" %(java, java_max_mem, picard, self.path, out_bam, metrics)
+        log = " &> %s/log/%s.mark_duplicates.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
@@ -176,26 +196,27 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
-                info("mark_duplicates step for %s fail!" %(self.path))
                 return(False)
-        info("mark_duplicates run successful!")
         return(out_bam) # BamFile Class instance 
-    def realigner_target_creator(self, config_dict, out_interval):
+    def realigner_target_creator(self, out_interval):
         """
         Ret:Use GATK realigner_target_creator to the BAM file(DNA Seq use). 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
         thread = config_dict["gatk_preprocess_thread"]
-        info("Now running realigner_target_creator step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_interval ,self.samplename)#output is out_interval 
+        info("Running realigner_target_creator step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_interval_obj = FundementalFile(out_interval, config_dict, self.samplename)#output is out_interval 
         cmd = "%s -Xmx%s -jar %s  -T RealignerTargetCreator -R %s --num_threads %s \
                -allowPotentiallyMisencodedQuals -I %s \
                -o %s " %(java, java_max_mem, gatk, reffa, thread, self.path, out_interval)
-        if out_bam.isexist():
+        log = " &> %s/log/%s.realigner_target_creator.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
+        if out_interval_obj.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
             info("%s BAM file is not exists!" %(in_bam.path))
@@ -203,26 +224,27 @@ class BamFile(FundementalFile):
         else:
             runcmd(cmd)
             savecmd(cmd, self.samplename)
-            if not out_bam.isexist():
-                info("realigner_target_creator step for %s fail!" %(self.path))
+            if not out_interval_obj.isexist():
                 return(False)
-        info("realigner_target_creator run successful!")
         return(out_interval) # BamFile Class instance 
-    def indel_realigner(self, config_dict, intervals, out_bam):
+    def indel_realigner(self, intervals, out_bam):
         """
         Ret:Use GATK indel_realigner to the BAM file(DNA Seq use). 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
         thread = config_dict["gatk_preprocess_thread"]
-        info("Now running indel_realigner step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam ,self.samplename) 
+        info("Running indel_realigner step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam ,self.samplename, config_dict) 
         cmd = "%s -Xmx%s -jar %s  -T IndelRealigner -R %s -targetIntervals %s \
                -allowPotentiallyMisencodedQuals -I %s \
                -o %s " %(java, java_max_mem, gatk, reffa, intervals, self.path, out_bam)
+        log = " &> %s/log/%s.indel_realigner.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
@@ -232,29 +254,30 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
-                info("indel_realigner step for %s fail!" %(self.path))
                 return(False)
-        info("indel_realigner run successful!")
         return(out_bam) # BamFile Class instance 
-    def recalibration(self, config_dict, out_grp):
+    def recalibration(self, out_grp):
         """
         Ret:Use GATK recalibration to the BAM file(DNA Seq use). 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
         known_sites_vcf = config_dict["known_sites_vcf"]
         known_sites_vcf = known_sites_vcf.split(":")
-        info("Now running recalibration step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_grp ,self.samplename) 
+        info("Running recalibration step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_grp_obj = FundementalFile(out_grp, config_dict, self.samplename) 
         cmd = "%s -Xmx%s -jar %s  -T BaseRecalibrator -R %s \
                --unsafe -I %s \
-               -o %s " %(java, java_max_mem, gatk, reffa, self.path, out_bam)
+               -o %s " %(java, java_max_mem, gatk, reffa, self.path, out_grp_obj.path)
         for j in known_sites_vcf:
             cmd = cmd + " -knownSites " + j 
-        if out_bam.isexist():
+        log = " &> %s/log/%s.recalibration.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
+        if out_grp_obj.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
             info("%s BAM file is not exists!" %(in_bam.path))
@@ -262,25 +285,26 @@ class BamFile(FundementalFile):
         else:
             runcmd(cmd)
             savecmd(cmd, self.samplename)
-            if not out_bam.isexist():
-                info("recalibration step for %s fail!" %(self.path))
+            if not out_grp_obj.isexist():
                 return(False)
-        info("recalibration run successful!")
         return(out_grp)
-    def print_reads(self, config_dict, grp, out_bam):
+    def print_reads(self, grp, out_bam):
         """
         Ret:Use GATK to print DNAseq bam data. 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Now running print_reads step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam ,self.samplename) 
+        info("Running print_reads step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam ,self.samplename, config_dict) 
         cmd = "%s -Xmx%s -jar %s  -T PrintReads -R %s \
                -BQSR %s -I %s \
                -o %s " %(java, java_max_mem, gatk, reffa, grp, self.path, out_bam)
+        log = " &> %s/log/%s.print_reads.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
@@ -290,25 +314,24 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
-                info("print_reads step for %s fail!" %(self.path))
                 return(False)
-        info("print_reads run successful!")
         return(out_bam)
 
     #split_ntrim: RNA seq bam use
-    def split_ntrim(self, config_dict, out_bam):
+    def split_ntrim(self, out_bam):
         """
         Ret:Use GATK to split_ntrim and conduct ReassignOneMappingQuality for RNAseq bam data. 
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
         RMQF = config_dict["gatk_RMQF"]
         RMQT = config_dict["gatk_RMQT"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Now running splitNtrim step for " + self.path)
-        in_bam = BamFile(self.path, self.samplename)
-        out_bam = BamFile(out_bam ,self.samplename) 
+        info("Running splitNtrim step for " + self.path)
+        in_bam = BamFile(self.path, self.samplename, config_dict)
+        out_bam = BamFile(out_bam ,self.samplename, config_dict) 
         cmd = "%s -Xmx%s -jar %s -T SplitNCigarReads \
                   -R %s \
                   -I %s \
@@ -317,6 +340,8 @@ class BamFile(FundementalFile):
                   -RMQF %s \
                   -RMQT %s \
                   -U ALLOW_N_CIGAR_READS" %(java, java_max_mem, gatk, reffa, in_bam, out_bam, RMQF, RMQT)
+        log = " &> %s/log/%s.split_ntrim.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if out_bam.isexist():
             savecmd(cmd, self.samplename)
         elif not in_bam.isexist():
@@ -326,16 +351,15 @@ class BamFile(FundementalFile):
             runcmd(cmd)
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
-                info("split_ntrim step for %s fail!" %(self.path))
                 return(False)
-        info("split_ntrim run successful!")
         return(out_bam) # BamFile Class instance 
 
     ######################################################  Variant Caller ###############################################
-    def haplotype_caller(self, config_dict, out_dir, control_bam = "", seq_type="dna"):
+    def haplotype_caller(self, out_dir, control_bam = "", seq_type="dna"):
         """
         Ret:Use GATK HaplotypeCaller to conduct Variant Discovery Step.  
         """
+        config_dict = self.config_dict
         intervals = config_dict["intervals"]
         java = config_dict["java"]
         gatk = config_dict["gatk"]
@@ -343,12 +367,12 @@ class BamFile(FundementalFile):
         dbsnp = config_dict["dbsnp"]
         tmp_dir = config_dict["gatk_tmp_dir"]
         java_max_mem = config_dict["java_max_mem"]
-        info("Now running haplotype_caller step for " + self.path)
+        info("Running Haplotype_caller step for " + self.path)
         snp_flag = dbsnp != ""
         intervals_flag = intervals != ""
         create_dir(out_dir)
         out_vcf = out_dir + "/" + self.samplename + ".vcf"
-        out_vcf = VcfFile(out_vcf,self.samplename)
+        out_vcf = VcfFile(out_vcf,self.samplename, config_dict)
         if isinstance(control_bam, BamFile):
             control_bam = control_bam.path
         if control_bam != "" and isexist(control_bam):
@@ -389,29 +413,31 @@ class BamFile(FundementalFile):
                       -I %s -o %s"\
                      % (java, java_max_mem, tmp_dir, gatk, reffa, self.path, out_vcf.path)
 
+        if snp_flag and intervals_flag :
+            cmd = cmd + " --dbsnp %s --intervals %s" %(dbsnp,intervals) 
+        elif snp_flag and not intervals_flag:
+            cmd = cmd + " --dbsnp %s" %(dbsnp) 
+        elif not snp_flag and intervals_flag:
+            cmd = cmd + " --intervals %s" %(intervals) 
+        log = " &> %s/log/%s.Haplotypecaller.log" % (os.getcwd(), self.runid)
+        cmd = cmd + log
         if self.isexist():
             if not out_vcf.isexist():
-                if snp_flag and intervals_flag :
-                    cmd = cmd + " --dbsnp %s --intervals %s" %(dbsnp,intervals) 
-                elif snp_flag and not intervals_flag:
-                    cmd = cmd + " --dbsnp %s" %(dbsnp) 
-                elif not snp_flag and intervals_flag:
-                    cmd = cmd + " --intervals %s" %(intervals) 
                 runcmd(cmd)
                 savecmd(cmd, self.samplename)
                 if not out_vcf.isexist():
                     return(False)
             else:
                 savecmd(cmd , self.samplename)
-            info("haplotype_caller caller run successful!")
             return(out_vcf) # VcfFile Class instance
         else:
             info("Bam File not exists, can not conduct haplotype_caller step!")
             return(False)
-    def unifiedgenotyper_caller(self, config_dict, out_dir, control_bam = ""):
+    def unifiedgenotyper_caller(self, out_dir, control_bam = ""):
         """
         Ret:Use GATK UnifiedGenotyper to conduct Variant Discovery Step.  
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         reffa = config_dict["reffa"]
@@ -439,43 +465,62 @@ class BamFile(FundementalFile):
         snp_flag = dbsnp != ""
         intervals_flag = intervals != ""
         out_vcf = out_dir + "/" + self.samplename + ".vcf"
-        out_vcf = VcfFile(out_vcf, self.samplename)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict)
         if isinstance(control_bam, BamFile):
             control_bam = control_bam.path
         if control_bam != "" and isexist(control_bam):
-            info("Now running unifiedgenotyper_caller step for " + self.path + " and " + control_bam)
-            out_case_vcf = VcfFile(out_vcf.path + ".case", self.samplename)
-            out_control_vcf = VcfFile(out_vcf.path + ".control" ,self.samplename)
+            info("Running Unifiedgenotyper_caller step for " + self.path + " and " + control_bam)
+            out_case_vcf = VcfFile(out_vcf.path + ".case", self.samplename, config_dict)
+            out_control_vcf = VcfFile(out_vcf.path + ".control" ,self.samplename, config_dict)
             case_cmd = setcmd(self.path, out_case_vcf.path)
+            log = " &> %s/log/%s.case.Unifiedgenotyper_caller.log" % (os.getcwd(), self.runid)
+            case_cmd = case_cmd + log
             control_cmd = setcmd(control_bam, out_control_vcf.path)
+            log = " &> %s/log/%s.control.Unifiedgenotyper_caller.log" % (os.getcwd(), self.runid)
+            control_cmd = control_cmd + log
             if self.isexist() and isexist(control_bam):
                 if not out_vcf.isexist():
+                    threads = []
                     if not out_case_vcf.isexist():
-                        runcmd(case_cmd)
+                        def func(cmd = case_cmd):
+                            runcmd(cmd)
+                        t1 = threading.Thread(target = func)
+                        threads.append(t1)
                         savecmd(case_cmd, self.samplename)
                     if not out_control_vcf.isexist():
-                        runcmd(control_cmd)
+                        def func(cmd = control_cmd):
+                            runcmd(cmd)
+                        t2 = threading.Thread(target = func)
+                        threads.append(t2)
                         savecmd(control_cmd, self.samplename)
+                    for t in threads:
+                        t.setDaemon(True)
+                        t.start()
+
+                    for t in threads:
+                        t.join()
+
                     if not out_case_vcf.isexist() or not out_control_vcf.isexist():
-                        info("unifiedgenotyper_caller caller in generate case_vcf or control vcf step fail!")
                         return(False)
-                    out_case_vcf.control_filter(config_dict, out_control_vcf.path, out_vcf.path)
+                    out_case_vcf.control_filter(out_control_vcf.path, out_vcf.path)
                     if not out_vcf.isexist(): 
                         return(False)
                 else:
                     savecmd(case_cmd, self.samplename)
                     savecmd(control_cmd, self.samplename)
-                    out_case_vcf.control_filter(config_dict, out_control_vcf.path, out_vcf.path)
+                    out_case_vcf.control_filter(out_control_vcf.path, out_vcf.path)
                     if not out_vcf.isexist(): 
                         return(False)
-                info("unifiedgenotyper_caller caller run successful!")
                 return(out_vcf) # VcfFile Class instance
             else:
                 info("Bam File not exists, can not conduct unifiedgenotyper_caller step!")
                 return(False)
         else:
-            info("Now running unifiedgenotyper_caller step for " + self.path)
+            info("Running Unifiedgenotyper_caller step for " + self.path)
             cmd = setcmd(self.path, out_vcf.path)
+            log = " &> %s/log/%s.case.Unifiedgenotyper_caller.log" % (os.getcwd(), self.runid)
+            cmd = cmd + log
+
             if self.isexist():
                 if not out_vcf.isexist():
                     runcmd(cmd)
@@ -484,15 +529,15 @@ class BamFile(FundementalFile):
                         return(False)
                 else:
                     savecmd(cmd, self.samplename)
-                info("unifiedgenotyper_caller caller run successful!")
                 return(out_vcf) # VcfFile Class instance
             else:
                 info("Bam File not exists, can not conduct unifiedgenotyper_caller step!")
                 return(False)
-    def mutect_caller(self, config_dict, control_bam ,out_dir):
+    def mutect_caller(self, control_bam ,out_dir):
         """
         Ret:Use GATK Mutect to conduct Variant Discovery Step.  
         """
+        config_dict = self.config_dict
         config_dict = set_jdk(config_dict, "jdk_17")
         java = config_dict["java"]
         reffa = config_dict["reffa"]
@@ -502,12 +547,12 @@ class BamFile(FundementalFile):
         tmp_dir = config_dict["gatk_tmp_dir"]
         mutect = config_dict["mutect"]
         create_dir(out_dir)
-        info("Now running Mutect step for " + self.path and control_bam)
+        info("Running Mutect step for " + self.path and control_bam)
         snp_flag = dbsnp != ""
         intervals_flag = intervals != ""
         out_vcf = out_dir + "/" + self.samplename + ".vcf"
         tmp = out_vcf + ".tmp"
-        out_vcf = VcfFile(out_vcf,self.samplename)
+        out_vcf = VcfFile(out_vcf,self.samplename, config_dict)
         if isinstance(control_bam, BamFile):
             control_bam = control_bam.path
         if isexist(tmp) and not out_vcf.isexist():
@@ -525,6 +570,10 @@ class BamFile(FundementalFile):
                     cmd = cmd + " --dbsnp %s" %(dbsnp) 
                 elif not snp_flag and intervals_flag:
                     cmd = cmd + " --intervals %s" %(intervals) 
+                
+                log = " &> %s/log/%s.case.Mutect_caller.log" % (os.getcwd(), self.runid)
+                cmd = cmd + log
+
                 cmd = cmd + " && grep -v \'REJECT\' %s > %s" % (tmp, out_vcf.path)
                 runcmd(cmd)
                 savecmd(cmd, self.samplename)
@@ -532,14 +581,14 @@ class BamFile(FundementalFile):
                     return(False)
             else:
                 savecmd(cmd, self.samplename)
-            info("Mutect2 caller run successful!")
             config_dict = set_jdk(config_dict, "jdk_18")
             return(out_vcf) # VcfFile Class instance
         else:
             config_dict = set_jdk(config_dict, "jdk_18")
             info("Bam File not exists, can not conduct mutect_caller step!")
             return(False)
-    def varscan_caller(self, config_dict, out_dir="", control_bam = ""):
+    def varscan_caller(self, out_dir="", control_bam = ""):
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         varscan = config_dict["varscan"]
@@ -548,55 +597,82 @@ class BamFile(FundementalFile):
         dbsnp = config_dict["dbsnp"]
         java_max_mem = config_dict["java_max_mem"]
         create_dir(out_dir)
-        info("Running varscan_caller step for " + self.path)
+        info("Running Varscan_caller step for " + self.path)
         out_snp_vcf = out_dir + "/" + self.samplename + ".snp.vcf"
-        out_snp_vcf = VcfFile(out_snp_vcf, self.samplename)
+        out_snp_vcf = VcfFile(out_snp_vcf, self.samplename, config_dict, runid = self.runid + ".Varscan")
         out_indel_vcf = out_dir + "/" + self.samplename + ".indel.vcf"
-        out_indel_vcf = VcfFile(out_indel_vcf, self.samplename)
+        out_indel_vcf = VcfFile(out_indel_vcf, self.samplename, config_dict, runid = self.runid + ".Varscan")
         out_vcf = out_dir + "/" + self.samplename + ".vcf"
-        out_vcf = VcfFile(out_vcf, self.samplename)
-        case_bam = BamFile(self.path, self.samplename)
-        control_bam = BamFile(control_bam, self.samplename)
+        out_vcf = VcfFile(out_vcf, self.samplename, config_dict)
+        case_bam = BamFile(self.path, self.samplename, config_dict)
+        control_bam = BamFile(control_bam, self.samplename, config_dict)
         cmd = ""
         if self.isexist():
             if not out_vcf.isexist() and (not out_snp_vcf.isexist() or not out_indel_vcf.isexist()):
-                case_mpileup_fn = MpileupFile(out_dir + "/" + self.samplename + ".mpileup.case", self.samplename)
-                case_bam.mpileup(config_dict, case_mpileup_fn.path)
+                case_mpileup_fn = MpileupFile(out_dir + "/" + self.samplename + ".mpileup.case", self.samplename, config_dict)
+                control_mpileup_fn = MpileupFile(out_dir + "/" + self.samplename + ".mpileup.control", self.samplename, config_dict)
+                threads = []
                 if control_bam.path != "" and control_bam.isexist():
-                    control_mpileup_fn = MpileupFile(out_dir + "/" + self.samplename + ".mpileup.control", self.samplename)
-                    control_bam.mpileup(config_dict, control_mpileup_fn.path)
+                    def func(case_bam = case_bam, case_mpileup_fn = case_mpileup_fn):
+                        case_bam.mpileup(case_mpileup_fn.path)
+                    t1 = threading.Thread(target = func)
+                    def func(control_bam = control_bam, control_mpileup_fn = control_mpileup_fn):
+                        control_bam.mpileup(control_mpileup_fn.path)
+                    t2 = threading.Thread(target = func)
+                    threads.append(t1)
+                    threads.append(t2)
+                    for t in threads:
+                        t.setDaemon(True)
+                        t.start()
+
+                    for t in threads:
+                        t.join()
                     cmd = "%s -Xmx%s -jar %s somatic %s %s --output-snp %s --output-indel %s --output-vcf"\
                         %(java, java_max_mem, varscan, case_mpileup_fn.path, control_mpileup_fn.path, out_snp_vcf.path, out_indel_vcf.path)
+                    log = " &> %s/log/%s.case.Varscan_caller.log" % (os.getcwd(), self.runid)
+                    cmd = cmd + log
                     runcmd(cmd)
                     savecmd(cmd, self.samplename)
                 else:
-                    cmd = "%s -Xmx%s -jar %s mpileup2snp %s --output-vcf 1 --min-var-freq 0.04 > %s"\
+                    case_bam.mpileup(case_mpileup_fn.path)
+                    snpcmd = "%s -Xmx%s -jar %s mpileup2snp %s --output-vcf 1 --min-var-freq 0.04 > %s"\
                         %(java, java_max_mem, varscan, case_mpileup_fn.path, out_snp_vcf.path)
-                    runcmd(cmd)
-                    savecmd(cmd, self.samplename)
-                    cmd = "%s -Xmx%s -jar %s mpileup2indel %s --output-vcf 1 --min-var-freq 0.04 > %s"\
+                    indelcmd = "%s -Xmx%s -jar %s mpileup2indel %s --output-vcf 1 --min-var-freq 0.04 > %s"\
                         %(java, java_max_mem, varscan, case_mpileup_fn.path, out_indel_vcf.path)
-                    runcmd(cmd)
-                    savecmd(cmd, self.samplename)
+                    snpcmd = snpcmd + " 2> %s/log/%s.case.Varscan_caller_snp.log" % (os.getcwd(), self.runid)
+                    indelcmd = indelcmd + " 2> %s/log/%s.case.Varscan_caller_indel.log" % (os.getcwd(), self.runid)
+                    t1 = threading.Thread(target = runcmd(snpcmd))
+                    t2 = threading.Thread(target = runcmd(indelcmd))
+                    threads.append(t1)
+                    threads.append(t2)
+                    savecmd(snpcmd, self.samplename)
+                    savecmd(indelcmd, self.samplename)
+                    for t in threads:
+                        t.setDaemon(True)
+                        t.start()
+
+                    for t in threads:
+                        t.join()
                 if not out_snp_vcf.isexist() or not out_indel_vcf.isexist():
                     return(False)
                 else:
                     out_snp_vcf.varscan2gatkfmt()
                     out_indel_vcf.varscan2gatkfmt()
-                    out_snp_vcf.merge(config_dict, out_vcf.path, indel=out_indel_vcf.path)
+                    out_snp_vcf.merge(out_vcf.path, indel=out_indel_vcf.path)
             else:
                 savecmd(cmd, self.samplename)
                 out_snp_vcf.varscan2gatkfmt()
                 out_indel_vcf.varscan2gatkfmt()
-                out_snp_vcf.merge(config_dict, out_vcf.path, indel=out_indel_vcf.path)
+                out_snp_vcf.merge(out_vcf.path, indel=out_indel_vcf.path)
             return(out_vcf) # VcfFile Class instance
         else:
             info("Bam File not exists, can not conduct varscan_caller step!")
             return(False)
-    def torrent_caller(self, config_dict, out_dir, control_bam=""):
+    def torrent_caller(self, out_dir, control_bam=""):
         """
         Ret:Use TVC-5.0.3 to conduct Variant Discovery Step.  
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         tvc = config_dict["tvc"]
@@ -609,7 +685,7 @@ class BamFile(FundementalFile):
         create_dir(out_dir)
 
         runed_vcf = out_dir + "/" + self.samplename + ".vcf"
-        runed_vcf = VcfFile(runed_vcf,self.samplename)
+        runed_vcf = VcfFile(runed_vcf,self.samplename. config_dict)
         def setcmd(bamfile, reffa, out_dir, json ="", backrun=False):
             cmd = "%s -i %s -r %s -o %s " \
                       % (tvc, bamfile, reffa, out_dir)
@@ -621,9 +697,9 @@ class BamFile(FundementalFile):
         if isinstance(control_bam, BamFile):
             control_bam = control_bam.path
         if control_bam != "" and isexist(control_bam):
-            info("Now running TorrentVariantCaller step for " + self.path + " and " + control_bam)
-            out_case_vcf = VcfFile(out_dir + "/case/TSVC_variants.vcf", self.samplename)
-            out_control_vcf = VcfFile(out_dir + "/control/TSVC_variants.vcf" ,self.samplename)
+            info("Running TorrentVariantCaller step for " + self.path + " and " + control_bam)
+            out_case_vcf = VcfFile(out_dir + "/case/TSVC_variants.vcf", self.samplename, config_dict)
+            out_control_vcf = VcfFile(out_dir + "/control/TSVC_variants.vcf" ,self.samplename, config_dict)
             case_cmd = setcmd(self.path, reffa, out_case_vcf.dirname, json)
             control_cmd = setcmd(control_bam, reffa, out_control_vcf.dirname, json)
             if self.isexist() and isexist(control_bam):
@@ -635,18 +711,16 @@ class BamFile(FundementalFile):
                         runcmd(control_cmd)
                         savecmd(control_cmd, self.samplename)
                     if not out_case_vcf.isexist() or not out_control_vcf.isexist():
-                        info("TorrentVariantCaller caller in generate case_vcf or control vcf step fail!")
                         return(False)
-                    out_case_vcf.control_filter(config_dict, out_control_vcf.path, runed_vcf.path)
+                    out_case_vcf.control_filter(out_control_vcf.path, runed_vcf.path)
                     if not runed_vcf.isexist(): 
                         return(False)
                 else:
                     savecmd(case_cmd, self.samplename)
                     savecmd(control_cmd, self.samplename)
-                    out_case_vcf.control_filter(config_dict, out_control_vcf.path, runed_vcf.path)
+                    out_case_vcf.control_filter(out_control_vcf.path, runed_vcf.path)
                     if not runed_vcf.isexist(): 
                         return(False)
-                info("TorrentVariantCaller caller run successful!")
                 return(runed_vcf) # VcfFile Class instance
             else:
                 info("Bam File not exists, can not conduct TorrentVariantCaller step!")
@@ -654,7 +728,7 @@ class BamFile(FundementalFile):
         else:
             info("Running TorrentVariantCaller step for " + self.path)
             out_vcf= out_dir + "/TSVC_variants.vcf"
-            out_vcf = VcfFile(out_vcf, self.samplename) 
+            out_vcf = VcfFile(out_vcf, self.samplename, config_dict) 
             cmd = setcmd(self.path, reffa, out_dir, json)
             if out_vcf.isexist():
                 out_vcf.mv(runed_vcf, self.samplename)
@@ -669,32 +743,32 @@ class BamFile(FundementalFile):
                         return(False)
                 else:
                     savecmd(cmd, self.samplename)
-                info("TorrentVariantCaller run successful!")
                 return(runed_vcf) # VcfFile Class instance
             else:
                 info("Bam File not exists, can not conduct TorrentVariantCaller step!")
                 return(False)
-    def lofreq_caller(self, config_dict, out_dir, control_bam = ""):
+    def lofreq_caller(self, out_dir, control_bam = ""):
         """
         Ret:Use lofreq to conduct Variant Discovery Step.  
         """
+        config_dict = self.config_dict
         java = config_dict["java"]
         gatk = config_dict["gatk"]
         lofreq = config_dict["lofreq"]
         reffa = config_dict["reffa"]
-        dbsnp = config_dict["dbsnp"]
+        dbsnp = config_dict["lofreq_dbsnp"]
         intervals = config_dict["intervals"]
         thread = config_dict["lofreq_thread"]
         create_dir(out_dir)
 
-        info("Running lofreq_caller step for " + self.path)
+        info("Running Lofreq_caller step for " + self.path)
         out_fn = out_dir + "/" + self.samplename + "_"
         out_snp_vcf = out_dir + "/" + self.samplename + "_somatic_final.snvs.vcf"
         out_indel_vcf = out_dir + "/" + self.samplename + "_somatic_final.indels.vcf"
         runed_vcf = out_dir + "/" + self.samplename + ".vcf"
-        runed_vcf = VcfFile(runed_vcf,self.samplename)
-        out_snp_vcf = VcfFile(out_snp_vcf, self.samplename) 
-        out_indel_vcf = VcfFile(out_indel_vcf, self.samplename) 
+        runed_vcf = VcfFile(runed_vcf,self.samplename, config_dict)
+        out_snp_vcf = VcfFile(out_snp_vcf, self.samplename, config_dict, runid = self.runid + ".Lofreq") 
+        out_indel_vcf = VcfFile(out_indel_vcf, self.samplename, config_dict, runid = self.runid + ".Lofreq") 
         out_snp_vcfgz = FundementalFile(out_snp_vcf.path + ".gz") 
         out_indel_vcfgz = FundementalFile(out_indel_vcf.path + ".gz") 
         if isinstance(control_bam, BamFile):
@@ -710,6 +784,7 @@ class BamFile(FundementalFile):
                 cmd = cmd + " -l %s %s"%(intervals, self.path)
             else:
                 cmd = cmd + self.path
+        cmd = cmd + " &> %s/log/%s.case.lofreq_caller.log" % (os.getcwd(), self.runid)
         if self.isexist():
             if control_bam == "" or (not isexist(control_bam)):
                 runcmd(cmd)
@@ -720,26 +795,25 @@ class BamFile(FundementalFile):
                 if out_indel_vcfgz.isexist() and not out_indel_vcf.isexist():
                     out_indel_vcfgz.gzip_uncompress()
                 if not runed_vcf.isexist() and out_snp_vcf.isexist() and out_indel_vcf.isexist():
-                    out_snp_vcf.merge(config_dict, runed_vcf, indelvcf = out_indel_vcf.path)
+                    out_snp_vcf.merge(runed_vcf, indelvcf = out_indel_vcf.path)
                 if not runed_vcf.isexist():
                     runcmd(cmd)
                     savecmd(cmd, self.samplename)
                     out_snp_vcfgz.gzip_uncompress()
                     out_indel_vcfgz.gzip_uncompress()
-                    out_snp_vcf.merge(config_dict, runed_vcf, indelvcf = out_indel_vcf.path)
+                    out_snp_vcf.merge(runed_vcf, indelvcf = out_indel_vcf.path)
             if runed_vcf.isexist():
-                info("Lofreq VariantCaller run successful!")
                 return(runed_vcf)
             else:
                 return(False)
-                info("Lofreq VariantCaller run fail!")
         else:
             info("Bam File not exists, can not conduct lofreq_caller step!")
             return(False)
-    def pindel_caller(self, config_dict, out_dir, control_bam=""):
+    def pindel_caller(self, out_dir, control_bam=""):
         """
         Ret:Use Pindel to conduct SVs Discovery Step.  
         """
+        config_dict = self.config_dict
         reffa = config_dict["reffa"]
         pindel_dir = config_dict["pindel_dir"]
         thread = config_dict["pindel_thread"]
@@ -762,7 +836,7 @@ class BamFile(FundementalFile):
                 runcmd(cmd)
             savecmd(cmd, self.samplename)
         info("Running Pindel step for " + self.path)
-        runed_vcf = VcfFile(out_dir + "/" + self.samplename + ".vcf", self.samplename)
+        runed_vcf = VcfFile(out_dir + "/" + self.samplename + ".vcf", self.samplename, config_dict)
         if isinstance(control_bam, BamFile):
             control_bam = control_bam.path
         if control_bam != "" and isexist(control_bam):
@@ -793,20 +867,19 @@ class BamFile(FundementalFile):
                 if not isexist(out_control + "_D"):
                     runcmd(control_cmd)
                 savecmd(control_cmd, self.samplename)
-                out_case_vcf = VcfFile(out_case + ".vcf", self.samplename)
-                out_control_vcf = VcfFile(out_control + ".vcf", self.samplename)
+                out_case_vcf = VcfFile(out_case + ".vcf", self.samplename, config_dict)
+                out_control_vcf = VcfFile(out_control + ".vcf", self.samplename, config_dict)
                 __pindelout2vcf(out_dir, out_case, out_case_vcf.path)
                 __pindelout2vcf(out_dir, out_control, out_control_vcf.path)
-                out_case_vcf.control_filter_nosplit(config_dict, out_control_vcf.path, runed_vcf.path)
+                out_case_vcf.control_filter(out_control_vcf.path, runed_vcf.path)
             else:
                 if not isexist(out_case + "_D"):
                     runcmd(case_cmd)
                 savecmd(case_cmd, self.samplename)
-                out_case_vcf = VcfFile(out_case + ".vcf", self.samplename)
+                out_case_vcf = VcfFile(out_case + ".vcf", self.samplename, config_dict)
                 __pindelout2vcf(out_dir, out_case, out_case_vcf.path)
                 out_case_vcf.mv(runed_vcf, self.samplename)  
             if runed_vcf.isexist():
-                info("Pindel VariantCaller run successful!")
                 return(runed_vcf)
             else:
                 return(False)
