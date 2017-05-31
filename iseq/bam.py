@@ -138,6 +138,7 @@ class BamFile(FundementalFile):
             savecmd(cmd ,self.samplename)
             if not out_bam.isexist():
                 return(False)
+        out_bam.index()
         return(out_bam) # BamFile Class instance 
     def add_read_group(self, out_bam, RGID = 1, RGLB = "Jhuanglab", RGPL="ILLUMINA", RGPU = "Hiseq"):
         """
@@ -172,6 +173,7 @@ class BamFile(FundementalFile):
             savecmd(cmd, self.samplename)
             if not out_bam.isexist():
                 return(False)
+        out_bam.index()
         return(out_bam) # BamFile Class instance 
     def mark_duplicates(self, out_bam, metrics):
         """
