@@ -120,7 +120,7 @@ class Vcffilter(FundementalFilter):
     def __init__(self, options):
         FundementalFilter.__init__(self, options)
         try:
-            self.check_filter = options.Vcffilter
+            self.check_filter = options.vcffilter
         except:
             self.check_filter = "common_filter"
         try:
@@ -295,17 +295,24 @@ def vcf_filter(options):
     options.control_vcf = ""
     vcffil = Vcffilter(options)
     vcffil.gatk_filter()
-    vcffil.annovar()
-    vcffil.mpileup()
-    final_fn = vcffil.fmt_result2final()
-    return(final_fn)
+    if options.mode.find("final") != -1:
+        vcffil.annovar()
+        vcffil.mpileup()
+        final_fn = vcffil.fmt_result2final()
+        return(final_fn)
+    else:
+        return(vcffil.case_vcf)
+
 def vcf_filter_somatic(options):
     vcffil = VcffilterSomatic(options)
     vcffil.gatk_filter()
-    vcffil.annovar()
-    vcffil.mpileup()
-    final_fn = vcffil.fmt_result2final()
-    return(final_fn)
+    if options.mode.find("final") != -1:
+        vcffil.annovar()
+        vcffil.mpileup()
+        final_fn = vcffil.fmt_result2final()
+        return(final_fn)
+    else:
+        return(vcffil.case_vcf)
 
 
 def main():

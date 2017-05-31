@@ -20,7 +20,8 @@ opt <- parse_args(OptionParser(option_list=option_list))
 
 ##read in csv
 flog.info(paste("Reading in csv file:",opt$inputcsv))
-raw.csv = read.table(opt$inputcsv,sep=",",header=T)
+raw.csv <- read.table(opt$inputcsv,sep=",",header=T)
+raw.csv <- raw.csv[raw.csv[,1] != "contig",]
 
 colnames.str = opt$colnames
 colnames.need <- str_split(colnames.str, ",")[[1]]

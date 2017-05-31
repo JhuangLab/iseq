@@ -22,7 +22,7 @@ opt <- parse_args(OptionParser(option_list=option_list))
 
 ##read in csv
 flog.info(paste("Reading in input file:",opt$input))
-raw.csv = read.table(opt$input,sep=opt$split,header=T)
+raw.csv <- read.table(opt$input,sep=opt$split,header=T)
 if(opt$exononly){
     #fil <- str_detect(raw.csv$Func.refGene,"exon|splic|stream|stop")
     fil <- !str_detect(raw.csv$Func.refGene,"intron|inte")
@@ -30,7 +30,8 @@ if(opt$exononly){
 }
 isdel <- (!is.na(raw.csv$ExonicFunc.refGene)) & str_detect(raw.csv$Alt,"-")
 raw.csv[isdel,"Start"] <- as.numeric(raw.csv[isdel,"Start"]) -1
-pos = cbind(raw.csv$Chr,raw.csv$Start)
+pos <- cbind(raw.csv$Chr,raw.csv$Start)
+pos <- pos[pos[,1] != "contig",]
 colnames( pos ) = pos[1,]
 #pos = pos[-1,]
 write.table( pos, opt$output,row.names=F,sep="\t",quote=F )

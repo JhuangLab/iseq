@@ -102,8 +102,6 @@ def runcmd(cmd, run=True):
 
 
 def savecmd(cmd, runid=""):
-    if not isexist("restart"):
-        os.makedirs("restart")
     fn_name = "restart/%s.sh" % (runid)
     fn = open(fn_name, "a+")
     local_time = time.localtime(time.time())

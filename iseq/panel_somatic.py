@@ -116,6 +116,9 @@ def opt_validate (optparser):
 def panel_somatic(options = ""):
     if options == "":
         options = opt_validate(prepare_optparser())
+    if not isexist("restart"):
+        os.makedirs("restart")
+    create_dir("%s/log" % os.getcwd())
     cfg = get_config(options.config)
     vcf_out_dir = options.out_dir
     options.mode = options.mode.lower()
@@ -235,10 +238,14 @@ def panel_somatic(options = ""):
                                     options.runid = "%s.%s.%s" % (options.samplename, key, vcf)
                                     finalfn = vcf_filter_somatic(options)
                                     finalout_dir = options.out_dir + "/finalResult"
-                                    create_dir(finalout_dir)
-                                    final_exon_fn = FundementalFile((str(finalfn)).replace("txt","exon.txt"))
-                                    final_exon_fn.cp("%s/%s.exon.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
-                                    finalfn.cp("%s/%s.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
+                                    if options.mode.find("final") != -1:
+                                        create_dir(finalout_dir)
+                                        final_exon_fn = FundementalFile((str(finalfn)).replace("txt","exon.txt"))
+                                        final_exon_fn.cp("%s/%s.exon.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
+                                        finalfn.cp("%s/%s.%s.%s.txt" % (finalout_dir, options.samplename, key, vcf))
+                                    else:
+                                        finalfn.cp("%s/%s.%s.%s.vcf" % (finalout_dir, options.samplename, key, vcf))
+
                                 threads_vcf.append(threading.Thread(target = func_vcf))
                             for t in threads_vcf:
                                 t.setDaemon(True)
@@ -263,13 +270,11 @@ def panel_somatic(options = ""):
         
 
 def main():
-    create_dir("%s/log" % os.getcwd())
     panel_somatic()
 
 
 if __name__ == "__main__":
     try:
-        create_dir("%s/log" % os.getcwd())
         main()
         info ("Successful run!!!")
     except KeyboardInterrupt:
