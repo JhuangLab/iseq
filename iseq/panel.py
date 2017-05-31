@@ -224,8 +224,6 @@ def panel(options=""):
                                     if vcf in "Lofreq":
                                         options.exononly = False
                                         options.vcffilter = cfg["lofreq_filtration"]
-                                    if vcf in "Mutect":
-                                        options.vcffilter = cfg["mutect_filtration"]
                                     if vcf in "Haplotypecaller":
                                         options.vcffilter = cfg["haplotypecaller_filtration"]
                                     options.runid = "%s.%s.%s" % (options.samplename, key, vcf)

@@ -419,7 +419,7 @@ class BamFile(FundementalFile):
             cmd = cmd + " --dbsnp %s" %(dbsnp) 
         elif not snp_flag and intervals_flag:
             cmd = cmd + " --intervals %s" %(intervals) 
-        log = " &> %s/log/%s.Haplotypecaller.log" % (os.getcwd(), self.runid)
+        log = " &> %s/log/%s.case.Haplotypecaller.log" % (os.getcwd(), self.runid)
         cmd = cmd + log
         if self.isexist():
             if not out_vcf.isexist():
@@ -537,7 +537,7 @@ class BamFile(FundementalFile):
         """
         Ret:Use GATK Mutect to conduct Variant Discovery Step.  
         """
-        config_dict = self.config_dict
+        config_dict = copy.deepcopy(self.config_dict)
         config_dict = set_jdk(config_dict, "jdk_17")
         java = config_dict["java"]
         reffa = config_dict["reffa"]

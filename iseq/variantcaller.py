@@ -192,6 +192,7 @@ def variant_caller(options):
     vcf_list = {}
     threads = []
     for caller in caller_list:
+        caller = caller.capitalize()
         def func(caller = caller, cfg = cfg, seq_type = seq_type, out_dir = out_dir, samplename = samplename, in_bam = in_bam):
             variantcaller = FundementalCaller(caller)
             variantcaller.set_config(cfg)
@@ -200,7 +201,8 @@ def variant_caller(options):
             variantcaller.set_bamfile(samplename, in_bam, runid = options.runid)
             # VcfFile object dict, using all mapped bam file to generate vcf file 
             vcf_list[caller] = variantcaller.call_variant() 
-        threads.append(threading.Thread(target = func))
+        if caller != "Mutect":
+            threads.append(threading.Thread(target = func))
     for t in threads:
         t.setDaemon(True)
         t.start()

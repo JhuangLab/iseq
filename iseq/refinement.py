@@ -99,9 +99,9 @@ class GatkFilter(FundementalFilter):
     """
     def __init__(self, options):
         FundementalFilter.__init__(self, options)
+        create_dir(self.out_dir)
     def fsqd_filter(self, out_vcf, window = 35, cluster = 3, maxFS = 30.0, minQD = 2.0):  #RNAseq pipeline filter
-        out_dir = self.out_dir 
-        create_dir(out_dir)
+        out_dir = self.out_dir
         out_vcf = self.case_vcf.fsqd_filter(out_vcf, window, cluster, maxFS, minQD)
         return(out_vcf)
     def control_filter(self, out_vcf): #wes somatic pipeline unifiedgenotyper_caller drop same of conrol 

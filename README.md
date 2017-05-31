@@ -49,7 +49,7 @@ pip install .
 
 ```bash
 # fastq2vcf mode
-panel.py -c config.cfg \
+panel -c config.cfg \
          -s A01A \
          -m fastq2vcf \
          -1 A01A_1.fq.gz \
@@ -58,7 +58,7 @@ panel.py -c config.cfg \
          -o outdir
 
 # fastq2bam
-panel.py -c config.cfg \
+panel -c config.cfg \
          -s A01A \
          -m fastq2bam \
          -1 A01A_1.fq.gz \
@@ -67,7 +67,7 @@ panel.py -c config.cfg \
          -o outdir
 
 # bam2vcf
-panel.py -c config.cfg \
+panel -c config.cfg \
          -s A01A \
          -m bam2vcf \
          --in_bam A01A.bam \
@@ -75,14 +75,14 @@ panel.py -c config.cfg \
          -o outdir
 
 # genomeindex mode
-panel.py -c config.cfg -m genomeindex
+panel -c config.cfg -m genomeindex
 ```
 
 **With paired normal control sample**
 
 ```bash
 # fastq2vcf mode
-panel_somatic.py -c config.cfg \
+panel_somatic -c config.cfg \
                  -s A01 \
                  -m fastq2vcf \
                  -1 A01A_1.fq.gz \
@@ -93,7 +93,7 @@ panel_somatic.py -c config.cfg \
                  -o outdir
 
 # fastq2bam mode
-panel_somatic.py -c config.cfg \
+panel_somatic -c config.cfg \
                  -s A01 \
                  -m fastq2bam \
                  -1 A01A_1.fq.gz \
@@ -104,7 +104,7 @@ panel_somatic.py -c config.cfg \
                  -o outdir
 
 # bam2vcf mode
-panel_somatic.py -c config.cfg \
+panel_somatic -c config.cfg \
                  -s A01 \
                  -m bam2vcf \
                  --case_in_bam A01A.bam \
@@ -113,5 +113,5 @@ panel_somatic.py -c config.cfg \
                  -o outdir
 
 # genomeindex mode
-panel_somatic.py -c config.cfg -m genomeindex
+panel_somatic -c config.cfg -m genomeindex
 ```
