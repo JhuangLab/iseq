@@ -11,6 +11,7 @@ from iseq.preprocess import *
 from iseq.variantcaller import *
 from iseq.refinement import *
 
+create_dir("log")
 class Tests(unittest.TestCase):
     def setUp(self):
         info('--------- Test setUp Start --------------')
@@ -159,8 +160,8 @@ class Tests(unittest.TestCase):
         info('--------- Test bam Module Start -----------')
         test_bam = "example_dat/exampleBAM.bam"
         cp(test_bam, "%s/exampleBam.bam" % self.temp_dir)
-        test_bam = BamFile("%s/exampleBam.bam" % self.temp_dir, "example")
-        test_bam.index(self.cfg)
+        test_bam = BamFile("%s/exampleBam.bam" % self.temp_dir, "example", config_dict = self.cfg)
+        test_bam.index()
         #self.cfg["reffa"] = self.reffa
         #test_bam.mpileup(self.cfg, test_bam.path + ".mpileup")
         #test_bam.contig_reorder(self.cfg, test_bam.path + ".contig_reorder.bam")
@@ -313,6 +314,8 @@ class iseq_option(object):
         self.out_dir = outdir
         self.seq_type = seq_type
         self.Vcffilter = Vcffilter
+        self.runid = "test"
+        self.mode = "fastq2final"
 
 if __name__ == '__main__':
     unittest.main()
