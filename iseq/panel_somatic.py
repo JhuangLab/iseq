@@ -189,6 +189,11 @@ def panel_somatic(options = ""):
 
     mapper = cfg["mapper"]
     mapper = mapper.split(",")
+    frq_exon_only = cfg["freq_exon_only"]
+    if frq_exon_only is "1":
+      options.exononly = True
+    else:
+      options.exononly = False
     threads_mapper = []
     bamfiles_pool = {}
     if options.mode == "genomeindex":
@@ -229,7 +234,6 @@ def panel_somatic(options = ""):
                                         options.vcfformat = "vcf4old"
                                         options.vcffilter = cfg["varscan_filtration"]
                                     if vcf in "Lofreq":
-                                        options.exononly = False
                                         options.vcffilter = cfg["lofreq_filtration"]
                                     if vcf in "Mutect":
                                         options.vcffilter = cfg["mutect_filtration"]
