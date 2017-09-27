@@ -230,10 +230,9 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def add_read_group_single(self = self):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_bam = bamfile.path.replace(replace_str, "_AddGroup.bam")
+                pattern = ".bam$"
+                new_string = "_AddGroup.bam"
+                out_bam, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 groupedBam = bamfile.add_read_group(out_bam)
@@ -255,10 +254,9 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def contig_reorder_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_bam = bamfile.path.replace(replace_str, "_Reorder.bam")
+                pattern = ".bam$"
+                new_string = "_Reorder.bam"
+                out_bam, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 reorderedBam = bamfile.contig_reorder(out_bam)
@@ -280,11 +278,11 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def mark_duplicates_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_bam = bamfile.path.replace(replace_str, "_MarkDup.bam")
-                out_metrics = bamfile.path.replace(replace_str, ".metrics")
+                pattern = ".bam$"
+                new_string = "_MarkDup.bam"
+                out_bam, number = re.subn(pattern, new_string, bamfile.path)
+                new_string = ".metrics"
+                out_metrics, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 mark_duplicatesBam = bamfile.mark_duplicates(out_bam, out_metrics)
@@ -306,10 +304,9 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def realigner_target_creator_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_intervals = bamfile.path.replace(replace_str, ".intervals")
+                pattern = ".bam$"
+                new_string = ".intervals"
+                out_intervals, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 bamfile.realigner_target_creator(out_intervals)
@@ -331,14 +328,13 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def indel_realigner_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_bam = bamfile.path.replace(replace_str, "_IndelRealigner.bam")
+                pattern = ".bam$"
+                new_string = "_IndelRealigner.bam"
+                out_bam, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
-                indel_realignerBam = bamfile.indel_realigner( 
-                        bamfile.intervals, bamfile.path+"_IndelRealigner.bam")
+                indel_realignerBam = bamfile.indel_realigner(
+                        bamfile.intervals, out_bam)
                 self.bamfile_list[key] = indel_realignerBam 
             threads.append(threading.Thread(target = indel_realigner_single))
         for t in threads:
@@ -356,10 +352,9 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def recalibration_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_grp = bamfile.path.replace(replace_str, "_Recal_data.grp")
+                pattern = ".bam$"
+                new_string = "_Recal_data.grp"
+                out_grp, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 bamfile.recalibration(out_grp)
@@ -381,10 +376,9 @@ class BamPreprocessor(FundementalPreprocess):
         for key in self.bamfile_list.keys():
             def print_reads_single(self = self, key = key):
                 bamfile = self.bamfile_list[key]
-                pattern = re.compile(".bam$")
-                obj = re.search(pattern, bamfile.path)
-                replace_str = obj.group()
-                out_bam = bamfile.path.replace(replace_str, "_PrintReads.bam")
+                pattern = ".bam$"
+                new_string = "_PrintReads.bam"
+                out_bam, number = re.subn(pattern, new_string, bamfile.path)
                 if key not in bamfile.runid:
                     bamfile.runid = bamfile.runid + "." + key
                 print_readsBam = bamfile.print_reads(bamfile.recaldata, out_bam)
