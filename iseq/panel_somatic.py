@@ -88,20 +88,16 @@ def opt_validate (optparser):
         print("Error:Please set mode correctly.")
         sys.exit(1)
 
-    if options.mode == "genomeindex":
-        return(options)
-
-    if not options.samplename:
-        optparser.print_help()
-        print("Error:Please set samplename correctly.")
-        sys.exit(1)
-    elif (not options.case_fastq1 or not options.control_fastq1) and (not options.case_in_bam or not options.control_in_bam):
-        optparser.print_help()
-        print("Error:Please set casefastq/controlfastq or case_in_bam/control_in_bam correctly.")
-        sys.exit(1)
-    elif options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess", "fastq2final", "bam2final"]:  
+    if options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess", "fastq2final", "bam2final"]:  
         optparser.print_help()
         print("Error:mode are not in genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess, fastq2final, bam2final.")
+        sys.exit(1)
+
+    if options.mode == "genomeindex":
+        return(options)
+    elif not options.samplename:
+        optparser.print_help()
+        print("Error:Please set samplename correctly.")
         sys.exit(1)
     elif options.mode in ["fastq2vcf","fastq2bam", "fastq2final"] and not options.case_fastq1 and not options.case_fastq2: 
         optparser.print_help()
@@ -191,14 +187,14 @@ def panel_somatic(options = ""):
     mapper = mapper.split(",")
     frq_exon_only = cfg["freq_exon_only"]
     if frq_exon_only is "1":
-      options.exononly = True
+        options.exononly = True
     else:
-      options.exononly = False
+        options.exononly = False
     threads_mapper = []
     bamfiles_pool = {}
     if options.mode == "genomeindex":
-       status = pre_process_somatic(options)
-       return(status)
+        status = pre_process_somatic(options)
+        return(status)
     else:
         for i in mapper:
             options.mapper = i

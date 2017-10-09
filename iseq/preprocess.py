@@ -59,7 +59,10 @@ class FundementalPreprocess(object):
         self.options = options
         self.cfg = get_config(options.config)
         self.reffa = self.cfg["reffa"]
-        self.mapper = options.mapper
+        try:
+            self.mapper = options.mapper
+        except:
+            pass
         self.genome_indexer = self.cfg["genome_indexer"]
 
 class GenomePreprocessor(FundementalPreprocess):

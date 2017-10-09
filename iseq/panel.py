@@ -49,7 +49,7 @@ def prepare_optparser ():
     optparser.add_option("-s", "--samplename", dest = "samplename" ,type = "string",
                          help = "Set the samplename.(Required)")
     optparser.add_option("-m", "--mode", dest = "mode" ,type = "string",
-                         help = "Run mode, [genome_index, fastq2vcf, fastq2bam, bam2vcf, bamprocess, fastq2final, bam2final].(Required)")
+                         help = "Run mode, [genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess, fastq2final, bam2final].(Required)")
     optparser.add_option("-1", "--fastq1", dest = "fastq1", type = "string", default = "",
                          help = "input fastq file paired 1.")
     optparser.add_option("-2", "--fastq2", dest = "fastq2", type = "string", default = "",
@@ -81,20 +81,21 @@ def opt_validate (optparser):
         print("Error:Please set mode correctly.")
         sys.exit(1)
 
+
+    if options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess", "fastq2final", "bam2final"]:  
+        optparser.print_help()
+        print("Error:mode are not in genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess.")
+        sys.exit(1)
+
     if options.mode == "genomeindex":
         return(options)
-
-    if not options.samplename:
+    elif not options.samplename:
         optparser.print_help()
         print("Error:Please set samplename correctly.")
         sys.exit(1)
     elif not options.fastq1 and not options.fastq2 and not options.in_bam:
         optparser.print_help()
         print("Error:Please set fastq1/fastq2 or in_bam correctly.")
-        sys.exit(1)
-    elif options.mode not in ["genomeindex", "fastq2vcf", "fastq2bam", "bam2vcf", "bamprocess", "fastq2final", "bam2final"]:  
-        optparser.print_help()
-        print("Error:mode are not in genomeindex, fastq2vcf, fastq2bam, bam2vcf, bamprocess.")
         sys.exit(1)
     elif options.mode in ["fastq2vcf","fastq2bam", "fastq2final"] and not options.fastq1 and not options.fastq2: 
         optparser.print_help()
@@ -183,14 +184,14 @@ def panel(options=""):
     mapper = mapper.split(",")
     frq_exon_only = cfg["freq_exon_only"]
     if frq_exon_only is "1":
-      options.exononly = True
+        options.exononly = True
     else:
-      options.exononly = False
+        options.exononly = False
     threads_mapper = []
     bamfiles_pool = {}
     if options.mode == "genomeindex":
-       status = pre_process(options)
-       return(status)
+        status = pre_process(options)
+        return(status)
     else:
         for i in mapper:
             options = copy.deepcopy(options)
