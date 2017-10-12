@@ -28,6 +28,18 @@ iseq is a integrated analysis toolkits and pipeline for NGS panel sequencing dat
 
 ## Usage
 
+[configuration file](https://github.com/JhuangLab/iseq/blob/master/data/config.cfg) is an important file to run iseq. Three type of parameters can be found in this file:
+
+- tools
+- extra files
+- non-file type parameters
+
+**Tools:** Command line tools, class of iseq can use these tools by `self.cfg`, e.g `self.cfg["gatk"]` (Need to be download and install)
+
+**Extra files:** Some of files required to run tools (Need to be download)
+
+**Non-file type parameters:** Other parameters (Do not need to be download anything)
+
 ### Germline Mode
 
 ```bash
