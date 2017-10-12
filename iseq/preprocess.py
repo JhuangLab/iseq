@@ -87,6 +87,9 @@ class GenomePreprocessor(FundementalPreprocess):
             elif indexer == "bowtie":
                 t4 = threading.Thread(target = genome.bowtie_index)
                 threads.append(t4)
+            elif indexer == "tmap":
+                t4 = threading.Thread(target = genome.tmap_index)
+                threads.append(t4)
             else:
                 info("The genome_indexer set error in config.cfg!")
 
@@ -109,6 +112,7 @@ class FastqPreprocessor(FundementalPreprocess):
         self.bowtie2bam = self.options.out_dir + "/bam/Bowtie2"
         self.bowtiebam = self.options.out_dir + "/bam/Bowtie"
         self.tophatbam = self.options.out_dir + "/bam/Tophat"
+        self.tophatbam = self.options.out_dir + "/bam/Tmap"
         self.fastq1 = options.fastq1
         self.fastq2 = options.fastq2
         self.fastq1fn = FastqFile(self.fastq1 ,self.samplename, self.cfg)
@@ -207,6 +211,18 @@ class FastqPreprocessor(FundementalPreprocess):
                         info(str(self.fastq1fn) + " Tophat mapping using bowtie step run unfinished!")
                 t6 = threading.Thread(target = tophat2_single)
                 threads.append(t6)
+            elif mapper == "TMAP":
+                def tmap_single(self=self):
+                    out_bam_dir =  self.tmapbam + "/" + self.samplename
+                    create_dir(out_bam_dir)
+                    out_bam = self.fastq1fn.tmap_mapping(out_bam_dir)
+                    try:
+                        if out_bam.isexist():
+                            self.bamfile_list["Tmap"] = out_bam
+                    except:
+                        info(str(self.fastq1fn) + " TMAP mapping step run unfinished!")
+                t7 = threading.Thread(target = tmap_single)
+                threads.append(t7)
             else:
                 info("The mapper set error in config.cfg!")
         for t in threads:

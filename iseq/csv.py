@@ -65,7 +65,8 @@ class CsvFile(FundementalFile):
         root_dir = get_root_dir()
         out_fn = MpileupFile(out_fn ,self.samplename, config_dict)
         info("Running samtools mpileup for %s to %s" % (self.path, out_fn.path))
-        cmd = "%s mpileup -q 1 -l %s -f %s %s > %s" % (samtools, self.pos_file ,reffa, in_bam, out_fn.path)
+        extra_option = config_dict["csvfile_mpileup_extra"]
+        cmd = "%s mpileup %s -l %s -f %s %s > %s" % (samtools, extra_option, self.pos_file ,reffa, in_bam, out_fn.path)
         if not out_fn.isexist():
             runcmd(cmd)
             savecmd(cmd, self.samplename)

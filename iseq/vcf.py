@@ -190,6 +190,7 @@ class VcfFile(FundementalFile):
         annovar_dir = config_dict["annovar_dir"]
         buildver = config_dict["annovar_buildver"]
         annovar_flag = config_dict["annovar_flag"]
+        extra_option = config_dict["vcffile_annovar_extra"]
         info ("Running annovar " + self.path + " VCF file, and output to " + out_dir + ".")
         avinput = out_dir + "/" + self.samplename + ".avinput" 
         out_csv = avinput + "." + buildver + "_multianno.csv"
@@ -202,8 +203,8 @@ class VcfFile(FundementalFile):
         else:
             savecmd(cmd, self.samplename)
         log = " &> %s/log/%s.annovar.log" % (os.getcwd(), self.runid)
-        cmd = "%s/table_annovar.pl %s %s/humandb -buildver %s -remove %s -nastring . -csvout" % (annovar_dir, avinput, 
-                annovar_dir, buildver, annovar_flag) 
+        cmd = "%s/table_annovar.pl %s %s/humandb -buildver %s -remove %s %s" % (annovar_dir, avinput, 
+                annovar_dir, buildver, annovar_flag, extra_option) 
         cmd = cmd + log
         if not out_csv.isexist() and isexist(avinput):
             runcmd(cmd)

@@ -32,7 +32,8 @@ class FastqFile(FundementalFile):
         mapper = config_dict["bwa"]
         samtools = config_dict["samtools"]
         reffa = config_dict["reffa"]
-        thread = config_dict["bwa_thread"]
+        thread = config_dict["fastqfile_bwa_mapping_thread"]
+        extra_option = config_dict["fastqfile_bwa_mapping_extra"]
         SMflag = getid(self.samplename)
         reffa_dir = os.path.dirname(reffa)
         out_bam = out_dir + "/" + self.samplename + ".bam" 
@@ -40,18 +41,18 @@ class FastqFile(FundementalFile):
         log = "2> %s/log/%s.Bwa.mapping.log" % (os.getcwd(), self.runid)
         if paired_fastq != "" and isexist(paired_fastq):
             info("Running Bwa mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s mem -t 40 -MR '@RG\\tID:%s-%s\\tPL:%s\\tSM:%s\\tLB:%s' \
+            cmd = "%s mem %s -t %s -MR '@RG\\tID:%s-%s\\tPL:%s\\tSM:%s\\tLB:%s' \
                     %s %s %s %s| %s fixmate -O bam - - \
-                    | %s sort -@ 30 -T %s -O bam -o %s \
-                    " % (mapper, machine, self.samplename, platform, SMflag, \
-                          lab, reffa, self.path, paired_fastq, log, samtools, samtools, self.samplename, out_bam)
+                    | %s sort -@ %s -T %s -O bam -o %s \
+                    " % (mapper, extra_option, thread, machine, self.samplename, platform, SMflag, \
+                          lab, reffa, self.path, paired_fastq, log, samtools, samtools, thread, self.samplename, out_bam)
         else:
             info("Running Bwa mapping step for %s." % (self.path))
-            cmd = "%s mem -t 40 -MR '@RG\\tID:%s-%s\\tPL:%s\\tSM:%s\\tLB:%s' \
+            cmd = "%s mem -t %s -MR '@RG\\tID:%s-%s\\tPL:%s\\tSM:%s\\tLB:%s' \
                     %s %s %s | %s fixmate -O bam - - \
-                    | %s sort -@ 30 -T %s -O bam -o %s \
-                    " % (mapper, machine, self.samplename, platform, SMflag, \
-                          lab, reffa, self.path, log, samtools, samtools, self.samplename, out_bam)
+                    | %s sort -@ %s -T %s -O bam -o %s \
+                    " % (mapper, extra_option, thread, machine, self.samplename, platform, SMflag, \
+                          lab, reffa, self.path, log, samtools, samtools, thread, self.samplename, out_bam)
         if mapping_runed_bam.isexist():
             savecmd(cmd, self.runid)
             mapping_runed_bam.index()
@@ -71,7 +72,8 @@ class FastqFile(FundementalFile):
         config_dict = self.config_dict
         mapper = config_dict["star"]
         reffa = config_dict["reffa"]
-        thread = config_dict["star_thread"]
+        thread = config_dict["fastqfile_star_mapping_thread"]
+        extra_option = config_dict["fastqfile_star_mapping_extra"]
         reffa_dir = os.path.dirname(reffa)
         out_dir = out_dir + "/" 
         out_bam =  out_dir + "Aligned.sortedByCoord.out.bam"
@@ -83,12 +85,12 @@ class FastqFile(FundementalFile):
         log = "&> %s/log/%s.Star.mapping.log" % (os.getcwd(), self.runid)
         if paired_fastq != "" and isexist(paired_fastq):
             info("Running STAR mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s --genomeDir %s --readFilesIn %s %s --runThreadN %s --outSAMtype BAM SortedByCoordinate \
-                      --outFileNamePrefix %s %s" % (mapper, reffa_dir, self.path, paired_fastq, thread ,out_dir, log) 
+            cmd = "%s %s --genomeDir %s --readFilesIn %s %s --runThreadN %s --outSAMtype BAM SortedByCoordinate \
+                      --outFileNamePrefix %s %s" % (mapper, extra_option, reffa_dir, self.path, paired_fastq, thread ,out_dir, log) 
         else:
             info("Running STAR mapping step for %s." % (self.path))
-            cmd = "%s --genomeDir %s --readFilesIn %s --runThreadN %s --outSAMtype BAM SortedByCoordinate \
-                      --outFileNamePrefix %s %s" % (mapper, reffa_dir, self.path, thread ,out_dir, log) 
+            cmd = "%s %s --genomeDir %s --readFilesIn %s --runThreadN %s --outSAMtype BAM SortedByCoordinate \
+                      --outFileNamePrefix %s %s" % (mapper, extra_option, reffa_dir, self.path, thread ,out_dir, log) 
         if mapping_runed_bam.isexist():
             savecmd(cmd, self.runid)
             mapping_runed_bam.index()
@@ -112,7 +114,8 @@ class FastqFile(FundementalFile):
         config_dict = self.config_dict
         mapper = config_dict["bowtie2"]
         reffa = config_dict["reffa"]
-        thread = config_dict["bowtie2_thread"]
+        thread = config_dict["fastqfile_bowtie2_mapping_thread"]
+        extra_option = config_dict["fastqfile_bowtie2_mapping_extra"]
         reffa_dir = os.path.dirname(reffa)
         pattren = re.compile(".(fa|fasta|FASTA|FA)$")
         replace_str = re.search(pattren, reffa).group()
@@ -127,10 +130,10 @@ class FastqFile(FundementalFile):
         log = "&> %s/log/%s.Bowtie2.mapping.log" % (os.getcwd(), self.runid)
         if paired_fastq != "" and isexist(paired_fastq):
             info("Running Bowtie2 mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s -p %s -x %s -1 %s -2 %s -S %s %s" % (mapper, thread, reffa_prefix, self.path, paired_fastq, out_sam.path, log)
+            cmd = "%s %s -p %s -x %s -1 %s -2 %s -S %s %s" % (mapper, extra_option, thread, reffa_prefix, self.path, paired_fastq, out_sam.path, log)
         else:
             info("Running Bowtie2 mapping step for %s." % (self.path))
-            cmd = "%s -p %s -x %s -1 %s -S %s %s" % (mapper, thread, reffa_prefix, self.path, out_sam.path, log)
+            cmd = "%s %s -p %s -x %s -1 %s -S %s %s" % (mapper, extra_option, thread, reffa_prefix, self.path, out_sam.path, log)
         if not out_sam.isexist() and not mapping_runed_bam.isexist():
             if mapper.lower().find("bowtie2"):
                 runcmd(cmd)
@@ -156,7 +159,8 @@ class FastqFile(FundementalFile):
         config_dict = self.config_dict
         mapper = config_dict["bowtie"]
         reffa = config_dict["reffa"]
-        thread = config_dict["bowtie_thread"]
+        thread = config_dict["fastqfile_bowtie_mapping_thread"]
+        extra_option = config_dict["fastqfile_bowtie_mapping_extra"]
         reffa_dir = os.path.dirname(reffa)
         pattren = re.compile(".(fa|fasta|FASTA|FA)$")
         replace_str = re.search(pattren, reffa).group()
@@ -171,10 +175,10 @@ class FastqFile(FundementalFile):
         log = "&> %s/log/%s.Bowtie.mapping.log" % (os.getcwd(), self.runid)
         if paired_fastq != "" and isexist(paired_fastq):
             info("Running Bowtie mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s %s -p %s --chunkmbs 2000  -n 2 -l 28 -e 70 -1 %s -2 %s %s %s" %(mapper, reffa_prefix, thread, self.path, paired_fastq, out_sam.path, log)
+            cmd = "%s %s -p %s %s -1 %s -2 %s %s %s" %(mapper, reffa_prefix, thread, extra_option, self.path, paired_fastq, out_sam.path, log)
         else:
             info("Running Bowtie mapping step for %s." % (self.path))
-            cmd = "%s %s -p %s --chunkmbs 2000  -n 2 -l 28 -e 70 -1 %s -2 %s %s %s" %(mapper, reffa_prefix, thread, self.path, out_sam.path, log)
+            cmd = "%s %s -p %s %s -1 %s -2 %s %s %s" %(mapper, reffa_prefix, thread, extra_option, self.path, out_sam.path, log)
         if not out_sam.isexist() and not mapping_runed_bam.isexist():
             if mapper.lower().find("bowtie"):
                 runcmd(cmd)
@@ -201,8 +205,9 @@ class FastqFile(FundementalFile):
         config_dict = self.config_dict
         mapper = config_dict["tophat"]
         reffa = config_dict["reffa"]
-        thread = config_dict["tophat_thread"]
-        gtf = config_dict["gtf"]
+        thread = config_dict["fastqfile_tophat_mapping_thread"]
+        extra_option = config_dict["fastqfile_tophat_mapping_extra"]
+        known_transcript = config_dict["known_transcript"]
         reffa_dir = os.path.dirname(reffa)
         out_dir = out_dir + "/"
         out_bam =  out_dir + "accepted_hits.bam"
@@ -216,15 +221,15 @@ class FastqFile(FundementalFile):
         paired_fastq = fastq_uncompress(paired_fastq)
         if mode == "tophat2":
             info("Running tophat2 mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s --num-threads %s --output-dir %s %s %s %s" %(mapper, thread, out_dir, reffa_prefix, self.path, paired_fastq)
-            if gtf != "":
-                cmd = "%s --num-threads %s -G %s --output-dir %s %s %s %s" %(mapper, thread, gtf, out_dir, reffa_prefix, self.path, paired_fastq)
+            cmd = "%s %s --num-threads %s --output-dir %s %s %s %s" %(mapper, extra_option, thread, out_dir, reffa_prefix, self.path, paired_fastq)
+            if known_transcript != "":
+                cmd = "%s %s --num-threads %s -G %s --output-dir %s %s %s %s" %(mapper, extra_option, thread, known_transcript, out_dir, reffa_prefix, self.path, paired_fastq)
             log = " &> %s/log/%s.Tophat2.mapping.log" % (os.getcwd(), self.runid)
         else:
             info("Running tophat mapping step for %s and %s." % (self.path, paired_fastq))
-            cmd = "%s --num-threads %s --output-dir %s --bowtie1 %s %s %s" %(mapper, thread ,out_dir, reffa_prefix, self.path, paired_fastq)
-            if gtf != "":
-                cmd = "%s --num-threads %s -G %s --output-dir %s --bowtie1 %s %s %s" %(mapper, thread, gtf, out_dir, reffa_prefix, self.path, paired_fastq)
+            cmd = "%s %s --num-threads %s --output-dir %s --bowtie1 %s %s %s" %(mapper, extra_option, thread ,out_dir, reffa_prefix, self.path, paired_fastq)
+            if known_transcript != "":
+                cmd = "%s %s --num-threads %s -G %s --output-dir %s --bowtie1 %s %s %s" %(mapper, extra_option, thread, known_transcript, out_dir, reffa_prefix, self.path, paired_fastq)
             log = " &> %s/log/%s.Tophat.mapping.log" % (os.getcwd(), self.runid)
         cmd = cmd + log
         if not out_bam.isexist() and not mapping_runed_bam.isexist():
@@ -246,13 +251,41 @@ class FastqFile(FundementalFile):
         else:
             return(False)
 
+    def tmap_mapping(self, out_dir = ""):
+        config_dict = self.config_dict
+        mapper = config_dict["tmap"]
+        reffa = config_dict["reffa"]
+        thread = config_dict["fastqfile_tmap_mapping_thread"]
+        extra_option = config_dict["fastqfile_tmap_mapping_extra"]
+        out_dir = out_dir + "/"
+        out_bam =  out_dir + self.samplename + ".bam"
+        out_sam =  out_dir + self.samplename + ".sam"
+        out_bam = BamFile(out_bam ,self.samplename, config_dict)
+        out_sam = SamFile(out_sam ,self.samplename, config_dict)
+        mapping_runed_bam = BamFile(out_bam ,self.samplename, config_dict) # tmap out_bam is same with mapping_runed_bam
+        info("Running TMAP mapping step for %s." % (self.path))
+        log = " &> %s/log/%s.Tmap.mapping.log" % (os.getcwd(), self.runid)
+        cmd = "%s mapall -f %s -r %s -n %s %s 1> %s 2>%s" % (mapper, reffa, self.path, thread, extra_option, out_sam.path,
+                log)
+        if not out_sam.isexist() and not out_bam.isexist():
+            if mapper.lower().find("tmap"):
+                runcmd(cmd)
+                savecmd(cmd, self.runid)
+                out_sam.convert2bam(mapping_runed_bam)
+            else:
+                info("Please set correct tmap path!")
+        if out_bam.isexist():
+            return(mapping_runed_bam)
+        else:
+            return(False)
     def fastqc(self, out_dir):
         config_dict = self.config_dict
         info("Running fastqc for %s." % (self.path))
         fastqc = config_dict["fastqc"]
+        extra_option = config_dict["fastqfile_fastqc_extra"]
         path = os.path.expanduser(self.path)
         path = fastq_uncompress(self.path)
-        cmd = "%s %s -o %s" % (fastqc, path, out_dir)
+        cmd = "%s %s -o %s %s" % (fastqc, path, out_dir, extra_option)
         pattren = re.compile(".(fq|fastq)$")
         re_obj = re.search(pattren, path)
         replace_str = re_obj.group()

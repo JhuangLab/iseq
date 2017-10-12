@@ -12,6 +12,7 @@ from iseq.variantcaller import *
 from iseq.refinement import *
 
 create_dir("log")
+create_dir("restart")
 class Tests(unittest.TestCase):
     def setUp(self):
         info('--------- Test setUp Start --------------')
@@ -117,16 +118,18 @@ class Tests(unittest.TestCase):
         pattren = re.compile(".(fa|fasta|FASTA|FA)$")
         replace_str = re.search(pattren, reffa_path).group()
         out_dict = reffa_path.replace(replace_str,".dict")
-        reffa_test = ReffaFile(reffa_path)
-        reffa_test.generate_dict(self.cfg)
+        reffa_test = ReffaFile(reffa_path, self.cfg)
+        reffa_test.generate_dict()
         self.assertEqual(isexist(out_dict), True)
-        status = reffa_test.bwa_index(self.cfg)
+        status = reffa_test.bwa_index()
         self.assertEqual(status, True)
-        status = reffa_test.star_index(self.cfg)
+        status = reffa_test.star_index()
         self.assertEqual(status, True)
-        status = reffa_test.bowtie_index(self.cfg)
+        status = reffa_test.bowtie_index()
         self.assertEqual(status, True)
-        status = reffa_test.bowtie2_index(self.cfg)
+        status = reffa_test.bowtie2_index()
+        self.assertEqual(status, True)
+        status = reffa_test.tmap_index()
         self.assertEqual(status, True)
         info('--------- Test reffa Module END -----------')
 
@@ -140,20 +143,21 @@ class Tests(unittest.TestCase):
         fastq_2 = "%s/reads_2.fq.gz" % self.temp_dir
         self.fastq_1 =fastq_1
         self.fastq_2 =fastq_2
-        fastq_test_1 = FastqFile(fastq_1, "example")
-        fastq_test_2 = FastqFile(fastq_2, "example")
-        test_list = ["bwa", "bowtie", "bowtie2", "star", "tophat"]
+        fastq_test_1 = FastqFile(fastq_1, "example", self.cfg)
+        fastq_test_2 = FastqFile(fastq_2, "example", self.cfg)
+        test_list = ["bwa", "bowtie", "bowtie2", "star", "tophat", "tmap"]
         test_dir = {}
-        #for i in test_list:
-        #    test_dir_tmp = "%s/%s_test" % (self.temp_dir, i)
-        #    create_dir(test_dir_tmp)
-        #    test_dir.update({i:test_dir_tmp})
-        #self.cfg["reffa"] = self.reffa
-        #fastq_test_1.bwa_mapping(self.cfg, test_dir["bwa"], True, fastq_test_2.path)
-        #fastq_test_1.bowtie_mapping(self.cfg, test_dir["bowtie"], True, fastq_test_2.path)
-        #fastq_test_1.bowtie2_mapping(self.cfg, test_dir["bowtie2"], True, fastq_test_2.path)
-        #fastq_test_1.star_mapping(self.cfg, test_dir["star"], True, fastq_test_2.path)
-        #fastq_test_1.tophat_mapping(self.cfg, test_dir["tophat"], paired=True, paired_fastq=fastq_test_2.path)
+        for i in test_list:
+            test_dir_tmp = "%s/%s_test" % (self.temp_dir, i)
+            create_dir(test_dir_tmp)
+            test_dir.update({i:test_dir_tmp})
+        self.cfg["reffa"] = self.reffa
+        fastq_test_1.bwa_mapping(test_dir["bwa"], fastq_test_2.path)
+        fastq_test_1.bowtie_mapping(test_dir["bowtie"], fastq_test_2.path)
+        fastq_test_1.bowtie2_mapping(test_dir["bowtie2"], fastq_test_2.path)
+        fastq_test_1.star_mapping(test_dir["star"], fastq_test_2.path)
+        fastq_test_1.tophat_mapping(test_dir["tophat"], paired_fastq=fastq_test_2.path)
+        fastq_test_1.tmap_mapping(test_dir["tmap"])
         info('--------- Test fastq Module END -----------')
 
     def bam_test(self):
@@ -162,40 +166,40 @@ class Tests(unittest.TestCase):
         cp(test_bam, "%s/exampleBam.bam" % self.temp_dir)
         test_bam = BamFile("%s/exampleBam.bam" % self.temp_dir, "example", config_dict = self.cfg)
         test_bam.index()
-        #self.cfg["reffa"] = self.reffa
-        #test_bam.mpileup(self.cfg, test_bam.path + ".mpileup")
-        #test_bam.contig_reorder(self.cfg, test_bam.path + ".contig_reorder.bam")
-        #test_bam.add_read_group(self.cfg, test_bam.path + "add_read_group.bam")
-        #test_bam.mark_duplicates(self.cfg, test_bam.path + "mark.bam", test_bam.path + ".metrics")
-        #test_bam.realigner_target_creator(self.cfg, test_bam.path + ".intervals")
-        #test_bam.indel_realigner(self.cfg, test_bam.path + ".intervals", test_bam.path + "inderealgner.bam")
-        #test_bam.recalibration(self.cfg, test_bam.path + ".grp")
-        #test_bam.print_reads(self.cfg, test_bam.path + ".grp", test_bam.path + ".final.bam")
-        #test_grp= "example_dat/exampleBAM.bam.grp"
-        #test_bam.print_reads(self.cfg, test_grp, test_bam.path + ".final.bam")
+        self.cfg["reffa"] = self.reffa
+        test_bam.mpileup(test_bam.path + ".mpileup")
+        test_bam.contig_reorder(test_bam.path + ".contig_reorder.bam")
+        test_bam.add_read_group(test_bam.path + "add_read_group.bam")
+        test_bam.mark_duplicates(test_bam.path + "mark.bam", test_bam.path + ".metrics")
+        test_bam.realigner_target_creator(test_bam.path + ".intervals")
+        test_bam.indel_realigner(test_bam.path + ".intervals", test_bam.path + "inderealgner.bam")
+        test_bam.recalibration(test_bam.path + ".grp")
+        test_bam.print_reads(test_bam.path + ".grp", test_bam.path + ".final.bam")
+        test_grp= "example_dat/exampleBAM.bam.grp"
+        test_bam.print_reads(test_grp, test_bam.path + ".final.bam")
 
         test_bam = "example_dat/exampleBAM.final.bam"
         control_bam = "example_dat/exampleBAM.bam"
         cp(test_bam, "%s/exampleBam.final.bam" % self.temp_dir)
         cp(control_bam, "%s/exampleBam.control.bam" % self.temp_dir)
 
-        test_bam = BamFile("%s/exampleBam.final.bam" % self.temp_dir, "example")
-        c_bam = BamFile("%s/exampleBam.control.bam" % self.temp_dir, "example")
+        test_bam = BamFile("%s/exampleBam.final.bam" % self.temp_dir, "example", config_dict = self.cfg)
+        c_bam = BamFile("%s/exampleBam.control.bam" % self.temp_dir, "example", config_dict = self.cfg)
         self.test_bam = test_bam
         self.c_bam = c_bam
-        #test_bam.index(self.cfg)
-        #c_bam.index(self.cfg)
-        #control_bam = c_bam.path
-        #test_bam.haplotype_caller(self.cfg, "%s/test_bam/haplo/" % self.temp_dir)
-        #test_bam.haplotype_caller(self.cfg, "%s/test_bam/haplo/" % self.temp_dir, control_bam)
-        #test_bam.unifiedgenotyper_caller(self.cfg, "%s/test_bam/unified/" % self.temp_dir)
-        #test_bam.unifiedgenotyper_caller(self.cfg, "%s/test_bam/unified/" % self.temp_dir, control_bam)
-        #test_bam.lofreq_caller(self.cfg, "%s/test_bam/lofreq/" % self.temp_dir)
-        #test_bam.lofreq_caller(self.cfg, "%s/test_bam/lofreq/" % self.temp_dir, control_bam)
-        #test_bam.varscan_caller(self.cfg, "%s/test_bam/varscan/" % self.temp_dir)
-        ###test_bam.varscan_caller(self.cfg, "%s/test_bam/varscan/" % self.temp_dir, control_bam)
-        #test_bam.pindel_caller(self.cfg, "%s/test_bam/pindel/" % self.temp_dir)
-        #test_bam.pindel_caller(self.cfg, "%s/test_bam/pindel/" % self.temp_dir, control_bam)
+        test_bam.index()
+        c_bam.index()
+        control_bam = c_bam.path
+        test_bam.haplotype_caller("%s/test_bam/haplo/" % self.temp_dir)
+        test_bam.haplotype_caller("%s/test_bam/haplo/" % self.temp_dir, control_bam)
+        test_bam.unifiedgenotyper_caller("%s/test_bam/unified/" % self.temp_dir)
+        test_bam.unifiedgenotyper_caller("%s/test_bam/unified/" % self.temp_dir, control_bam)
+        test_bam.lofreq_caller("%s/test_bam/lofreq/" % self.temp_dir)
+        test_bam.lofreq_caller("%s/test_bam/lofreq/" % self.temp_dir, control_bam)
+        test_bam.varscan_caller("%s/test_bam/varscan/" % self.temp_dir)
+        test_bam.varscan_caller("%s/test_bam/varscan/" % self.temp_dir, control_bam)
+        test_bam.pindel_caller("%s/test_bam/pindel/" % self.temp_dir)
+        test_bam.pindel_caller("%s/test_bam/pindel/" % self.temp_dir, control_bam)
         info('--------- Test bam Module END -----------')
 
     def vcf_test(self):
@@ -211,15 +215,15 @@ class Tests(unittest.TestCase):
 
         vcf_test_dir = "%s/test_vcf" % self.temp_dir
         create_dir(vcf_test_dir)
-        #test_vcf.annovar(self.cfg, vcf_test_dir)
-        #test_vcf.control_filter(self.cfg, control_vcf.path, vcf_test_dir + "/example.filter.vcf")
-        #test_vcf.control_filter_nosplit(self.cfg, control_vcf.path, vcf_test_dir + "/example.filter.nosplit.vcf")
-        #test_vcf.fsqd_filter(self.cfg, vcf_test_dir + "example.fsqd.filter.vcf")
-        #test_vcf.merge(self.cfg, vcf_test_dir + "/example.merge.vcf")
-        #test_vcf.select_snp(self.cfg, vcf_test_dir + "/example.snp.vcf")
-        #test_vcf.select_indel(self.cfg, vcf_test_dir + "/example.indel.vcf")
-        #test_vcf.snpfilter(vcf_test_dir + "/example.snpfilter.vcf")
-        #test_vcf.unifiedgenotyper_filter(self.cfg, vcf_test_dir + "/example.unifilter.vcf")
+        test_vcf.annovar(self.cfg, vcf_test_dir)
+        test_vcf.control_filter(self.cfg, control_vcf.path, vcf_test_dir + "/example.filter.vcf")
+        test_vcf.control_filter_nosplit(self.cfg, control_vcf.path, vcf_test_dir + "/example.filter.nosplit.vcf")
+        test_vcf.fsqd_filter(self.cfg, vcf_test_dir + "example.fsqd.filter.vcf")
+        test_vcf.merge(self.cfg, vcf_test_dir + "/example.merge.vcf")
+        test_vcf.select_snp(self.cfg, vcf_test_dir + "/example.snp.vcf")
+        test_vcf.select_indel(self.cfg, vcf_test_dir + "/example.indel.vcf")
+        test_vcf.snpfilter(vcf_test_dir + "/example.snpfilter.vcf")
+        test_vcf.unifiedgenotyper_filter(self.cfg, vcf_test_dir + "/example.unifilter.vcf")
 
     def csv_test(self):
         test_csv = "example_dat/example.avinput.hg19.multianno.csv"
@@ -249,13 +253,13 @@ class Tests(unittest.TestCase):
         result_file.fmt_result2final(result_file.path + ".final.txt", self.snv_frq, self.indel_frq)
 
     def preprocess_test(self):
-        #cmd = "python %s/iseq/preprocess.py -c %s -s example -1 %s -2 %s -d 1111111111 -o %s" % (self.code_dir, 
-        #        self.cfg_path, self.fastq_1, self.fastq_2, self.temp_dir)
-        #runcmd(cmd)
+        cmd = "python %s/iseq/preprocess.py -c %s -s example -1 %s -2 %s -d 1111111111 -o %s" % (self.code_dir, 
+                self.cfg_path, self.fastq_1, self.fastq_2, self.temp_dir)
+        runcmd(cmd)
         op = iseq_option("example", self.cfg_path, self.fastq_1, self.fastq_2, "1111111", self.test_bam.path, 
                 "1111111111", "1", "1", self.temp_dir)
-        #gp = GenomePreprocessor(op)
-        #gp.preprocess()
+        gp = GenomePreprocessor(op)
+        gp.preprocess()
         fq = FastqPreprocessor(op)
         fq.preprocess()
         pre_c = pre_processor(op)
@@ -265,7 +269,7 @@ class Tests(unittest.TestCase):
     def variantcall_test(self):
         op = iseq_option("example", self.cfg_path, self.fastq_1, self.fastq_2, "1111111", self.test_bam.path, 
                 "1111111111", "1", "1", self.temp_dir, "dna")
-        #variant_caller(op)
+        variant_caller(op)
         op = iseq_option("example", self.cfg_path, self.fastq_1, self.fastq_2, "1111111", 
                 self.test_bam.path + "," + self.c_bam.path,
                 "1111111111", "1", "1", self.temp_dir, "dna")
@@ -275,7 +279,7 @@ class Tests(unittest.TestCase):
         op = iseq_option("example", self.cfg_path, self.fastq_1, self.fastq_2, "1111111", 
                 self.test_bam.path,
                 "1111111111", "1", "1", self.temp_dir, "dna", self.test_vcf, self.control_vcf, "fsqd_filter,unifiedgenotyper_filter")
-        #vcf_filter(op)
+        vcf_filter(op)
 
         op = iseq_option("example", self.cfg_path, self.fastq_1, self.fastq_2, "1111111", 
                 self.test_bam.path + "," + self.c_bam.path,
@@ -284,17 +288,17 @@ class Tests(unittest.TestCase):
 
 
     def test_main(self):
-        #self.utils_test()
-        #self.reffa_test()
+        self.utils_test()
+        self.reffa_test()
         self.fastq_test()
         self.bam_test()
-        self.vcf_test()
+        #self.vcf_test()
         #self.csv_test()
         #self.mpileup_test()
         #self.result_test()
         #self.preprocess_test()
         #self.variantcall_test()
-        self.refinement_test()
+        #self.refinement_test()
 
 class iseq_option(object):
     def __init__(self, samplename, config, fastq1, fastq2, bamprocess, 
