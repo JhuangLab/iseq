@@ -1,6 +1,12 @@
-# iseq:A convenient integreted analysis tool of NGS Variant Discovery
-iseq is an integrated analysis pipeline for NGS panel sequencing data. If you have any question about this tool, please contact us
-(lee_jianfeng@sjtu.edu.cn)
+# iseq
+
+iseq is a integrated analysis toolkits and pipeline for NGS panel sequencing data. If you have any question about this tool, please contact [us](lee_jianfeng@sjtu.edu.cn).
+
+**Python class of iseq:** ReffaFile, FastqFile, BamFile, SamFile, VcfFile, CsvFile, MpileupFile and ResultFile.
+
+**Processor of iseq:** preprocess, variantcaller, refinement
+
+**Pipeline:** panel, panel_somatic
 
 ## Feature
 
@@ -11,41 +17,18 @@ iseq is an integrated analysis pipeline for NGS panel sequencing data. If you ha
 - Single configuration file do all things
 - Output log be divided into in individual file
 
-## Requirements
-- Java
-- R
-- Git
-- GATK
-- TVC
-- Bwa
-- STAR
-- Bowtie
-- Bowtie2
-- Tophat2
-- samtools
-- Picard
-- ANNOVAR
-- annovarR
-- BioInstaller
-
-
 ## Install
-### pip
-```bash
-pip install iseq
-```
 
 ### source code
+
 ```bash
 # Download the source code and gunzip
-python setup.py install
-# Or use pip
-pip install .
+./install.R
 ```
 
 ## Usage
 
-**Without paired normal control sample**
+### Germline Mode
 
 ```bash
 # fastq2vcf mode
@@ -78,7 +61,7 @@ panel -c config.cfg \
 panel -c config.cfg -m genomeindex
 ```
 
-**With paired normal control sample**
+### Somatic Mode
 
 ```bash
 # fastq2vcf mode
