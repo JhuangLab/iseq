@@ -1,6 +1,6 @@
 # iseq
 
-iseq is a integrated analysis toolkits and pipeline for NGS panel sequencing data. If you have any question about this tool, please contact [us](lee_jianfeng@sjtu.edu.cn).
+iseq is an integrated analysis toolkit and pipeline for NGS panel sequencing data. If you have any question about this tool, please contact [us](mailto:lee_jianfeng@sjtu.edu.cn).
 
 **Python class of iseq:** ReffaFile, FastqFile, BamFile, SamFile, VcfFile, CsvFile, MpileupFile and ResultFile.
 
@@ -34,11 +34,11 @@ iseq is a integrated analysis toolkits and pipeline for NGS panel sequencing dat
 - extra files
 - non-file type parameters
 
-**Tools:** Command line tools, class of iseq can use these tools by `self.cfg`, e.g `self.cfg["gatk"]` (Need to be download and install)
+**Tools:** Command line tools, class of iseq can use these tools by `self.cfg`, e.g `self.cfg["gatk"]` (Need to download and install)
 
-**Extra files:** Some of files required to run tools (Need to be download)
+**Extra files:** Some of files required to run tools (Need to download)
 
-**Non-file type parameters:** Other parameters (Do not need to be download anything)
+**Non-file type parameters:** Other parameters (Do not need to download anything)
 
 ### Germline Mode
 
