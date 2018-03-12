@@ -14,8 +14,8 @@ option_list <- list(make_option(c("-v", "--verbose"), action = "store_true", def
 opt <- parse_args(OptionParser(option_list = option_list))
 
 ## read in csv
-flog.info(paste("Reading in input file:", opt$input))
-raw.csv <- fread(opt$input, sep = opt$split, header = T)
+flog.info(sprintf("Reading in input file:'%s'", opt$input))
+raw.csv <- fread(file=opt$input, sep = opt$split, header = T)
 raw.csv <- as.data.frame(raw.csv)
 if (opt$exononly) {
   # fil <- str_detect(raw.csv$Func.refGene,'exon|splic|stream|stop')
@@ -27,5 +27,6 @@ raw.csv[isdel, "Start"] <- as.numeric(raw.csv[isdel, "Start"]) - 1
 pos <- cbind(raw.csv$Chr, raw.csv$Start)
 pos <- pos[pos[, 1] != "contig", ]
 colnames(pos) = pos[1, ]
+pos <- as.data.frame(pos)
 # pos = pos[-1,]
 fwrite(pos, opt$output, row.names = F, sep = "\t", quote = F)
