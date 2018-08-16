@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding=utf-8
 """Module Description
-Copyright (c) 2015 Jinyan HUANG <lee_jianfeng@sjtu.edu.cn>
+Copyright (c) 2018 Jianfeng Li <lee_jianfeng@sjtu.edu.cn>
 This code is free software; you can redistribute it and/or modify it
-under the terms of the BSD License.
-@RNA-seq pipeline
+under the terms of the MIT License.
+@Gene-panel sequencing analysis pipeline in nocontrol mode
 @status:  experimental
 @version: 1.0 
 @author:  Jianfeng Li
